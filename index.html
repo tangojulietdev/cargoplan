@@ -158,6 +158,39 @@ body.dragging .layer.free span{opacity:1}
 .bar{height:5px;border-radius:3px;background:var(--surface-2);margin:4px 6px 0;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--good)}
 .bar i.warn{background:var(--warn)}.bar i.crit{background:var(--crit)}
+.hold-body.free{position:relative;display:block;overflow:visible;touch-action:none;user-select:none;-webkit-user-select:none}
+.fsvg{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:hidden!important}
+.fsvg .fgrid{stroke:var(--line);stroke-width:1;opacity:.7}
+.fpoly{stroke:var(--hull);stroke-width:1;cursor:move;transition:opacity .15s}
+.fpoly.sel{stroke:var(--fg);stroke-width:2.5}
+.fpoly.locked{stroke-dasharray:5 3;cursor:default}
+.fpoly.dim{opacity:.18}
+.fmoving .fpoly.active{pointer-events:none;opacity:.85}
+.fmoving .fh{display:none}
+.flabel{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;color:var(--ink);font-size:11px;line-height:1.15;text-align:center;container-type:size;z-index:1}
+.flabel span{display:block;padding:1px 3px;max-width:100%}
+.flabel i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:3px;box-shadow:0 0 0 1px rgba(255,255,255,.75)}
+.flabel b{font-weight:600;white-space:nowrap}
+.flabel .tn{display:block;font-family:var(--font-num);white-space:nowrap}
+.flabel em{display:block;font-style:normal;opacity:.85;white-space:nowrap}
+.flabel.dim{opacity:.18}
+@container (max-height:40px){.flabel em{display:none}}
+@container (max-height:26px){.flabel b,.flabel i{display:none}}
+@container (max-width:34px){.flabel em,.flabel i{display:none}}
+.fh{position:absolute;width:12px;height:12px;margin:0 0 -6px -6px;background:var(--surface);border:2px solid var(--fg);border-radius:2px;z-index:4;touch-action:none}
+.fh::before{content:"";position:absolute;inset:-9px}
+.fh.v{border-radius:50%;cursor:crosshair}
+.fh.add{width:10px;height:10px;margin:0 0 -5px -5px;border-style:dashed;opacity:.75;cursor:copy}
+.fh[data-d=n],.fh[data-d=s]{cursor:ns-resize}.fh[data-d=e],.fh[data-d=w]{cursor:ew-resize}
+.fh[data-d=ne],.fh[data-d=sw]{cursor:nesw-resize}.fh[data-d=nw],.fh[data-d=se]{cursor:nwse-resize}
+.fband{position:absolute;border:2px dashed var(--primary);background:var(--primary-soft);opacity:.7;pointer-events:none;z-index:5}
+body.drawmode .hold-body.free{cursor:crosshair}
+body.drawmode .hold-body.free .fpoly{cursor:crosshair}
+.hold-body.t-ok{box-shadow:inset 0 0 0 3px var(--good)}
+.hold-body.t-warn{box-shadow:inset 0 0 0 3px var(--warn)}
+.hold-body.t-block{box-shadow:inset 0 0 0 3px var(--crit)}
+.dlg select{width:100%;min-height:44px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);padding:0 10px;margin-bottom:10px}
+.insp .tools2{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .hold.flash .hold-body{animation:flash 1.2s ease-out}
 @keyframes flash{0%,40%{box-shadow:0 0 0 4px var(--primary)}100%{box-shadow:0 0 0 0 transparent}}
 .legend{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 16px 0;font-size:12px;color:var(--muted)}
@@ -331,7 +364,7 @@ body.picking .hold-body{box-shadow:0 0 0 2px var(--primary-soft)}
           <div class="holds" id="holds"></div>
         </div>
       </div>
-      <div class="legend"><span><i class="sw"></i>Block fill = discharge port, left stripe = load port</span><span>Hold 1 forward on the right, Hold 10 aft on the left</span><span>Height = share of hold capacity (<span id="scalename">volume</span>)</span><span>Drag to move · <kbd>Shift</kbd> while dropping to move part · drop on a hold number to place on top of stow</span></div>
+      <div class="legend"><span><i class="sw"></i><span id="legend-key">Block fill = discharge port, left stripe = load port</span></span><span>Hold 1 forward on the right, Hold 10 aft on the left</span><span id="legend-h">Height = share of hold capacity (<span id="scalename">volume</span>)</span><span id="legend-tip"></span></div>
     </div>
 
     <div class="lower">
@@ -356,7 +389,7 @@ body.picking .hold-body{box-shadow:0 0 0 2px var(--primary-soft)}
 <script>
 (function(){
 'use strict';
-const APP_VERSION='1.4.1';
+const APP_VERSION='1.5.0';
 const LS='holdplanner.plan.v1', LST='holdplanner.theme';
 const DP_PAL=['#2F6FD0','#D9731A','#0F9488','#C0367C','#7A8A1C','#7B4BC4','#B8860B','#2D8FD6'];
 const LP_PAL=['#5B6B7F','#B59A6A','#6F9A72','#A35C3C','#8A5A83','#4F7A96'];
@@ -415,7 +448,7 @@ function blank(base){return {schema:1,sample:false,ship:base.ship,voyage:{name:'
 function load(){try{const s=localStorage.getItem(LS);if(!s)return null;const p=JSON.parse(s);return p&&p.ship&&Array.isArray(p.stows)?p:null}catch(e){return null}}
 
 let plan=migrate(load())||sample();
-const ui={view:'plan',pick:null,sel:null,focus:null,tab:'lp',scale:'vol',part:false,savedAt:null};
+const ui={view:'plan',draw:false,snap:true,pts:false,pick:null,sel:null,focus:null,tab:'lp',scale:'vol',part:false,savedAt:null};
 let undoS=[],redoS=[];
 
 /* ---------- lookups ---------- */
@@ -440,6 +473,147 @@ const autoTier=n=>{const m=maxTier(n);return m===0?1:Math.min(plan.ship.tiers,m+
 function lum(hex){const n=parseInt(hex.slice(1),16);return [(n>>16)&255,(n>>8)&255,n&255].map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0)}
 function ink(hex){if(!/^#[0-9a-f]{6}$/i.test(hex||''))return '#111A22';const L=lum(hex);return (1.05/(L+.05))>=((L+.05)/.05)?'#FFFFFF':'#111A22'}
 
+/* ---------- free draw layout: shapes are polygons in hold space, x 0..1 fwd/aft width, y 0..1 tank top to hatch ---------- */
+const isFree=()=>plan.layout==='free';
+const r4=v=>Math.round(v*10000)/10000;
+const clamp01=v=>Math.min(1,Math.max(0,v));
+const bb=pts=>{let x0=1,y0=1,x1=0,y1=0;for(const[x,y]of pts){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)}return {x0,y0,x1,y1,w:x1-x0,h:y1-y0}};
+const rectPts=(x0,y0,x1,y1)=>[[r4(x0),r4(y0)],[r4(x1),r4(y0)],[r4(x1),r4(y1)],[r4(x0),r4(y1)]];
+const ptsStr=pts=>pts.map(([x,y])=>`${(x*1000).toFixed(1)},${((1-y)*1000).toFixed(1)}`).join(' ');
+function polyArea(pts){let a=0;for(let i=0;i<pts.length;i++){const[x1,y1]=pts[i],[x2,y2]=pts[(i+1)%pts.length];a+=x1*y2-x2*y1}return Math.abs(a)/2}
+const isRect=pts=>pts.length===4&&new Set(pts.map(p=>p[0])).size===2&&new Set(pts.map(p=>p[1])).size===2;
+function above(a,b){if(!a.shape||!b.shape)return false;const A=bb(a.shape.pts),B=bb(b.shape.pts);const ov=Math.min(A.x1,B.x1)-Math.max(A.x0,B.x0);
+  return ov>0.02&&A.y0>=B.y1-0.03&&(A.y0+A.y1)>(B.y0+B.y1)}
+function freeTiers(list){const memo=new Map();const t=s=>{if(memo.has(s))return memo.get(s);memo.set(s,1);let m=0;for(const o of list)if(o!==s&&above(s,o))m=Math.max(m,t(o));memo.set(s,m+1);return m+1};list.forEach(s=>{s.tier=Math.min(t(s),99)})}
+const shapeKey=s=>`${s.hold}|${s.tier}|${s.t}`;
+function afterFree(){if(!isFree())return;plan.ship.holds.forEach(h=>freeTiers(hStows(h.no).filter(s=>s.shape)));plan.stows.forEach(s=>{if(s.shape)s.shape.k=shapeKey(s)})}
+function stackToShapes(){
+  for(const h of plan.ship.holds){
+    const list=hStows(h.no);if(!list.length)continue;
+    if(list.every(s=>s.shape&&s.shape.k===shapeKey(s)))continue;
+    let y=0;const top=maxTier(h.no);
+    for(let k=1;k<=top;k++){const ts=list.filter(s=>s.tier===k).sort(byOrder);if(!ts.length)continue;
+      let hg=Math.max(0.06,sum(ts,s=>s.t*(PC(s.parcel)?.sf||0))/(h.baleM3||1));if(y+hg>1){y=Math.max(0,1-hg);if(y<0.0001)hg=1}
+      const T=sum(ts,s=>s.t)||1;let x=0;ts.forEach(s=>{const w=s.t/T;s.shape={pts:rectPts(x,y,x+w,Math.min(1,y+hg))};x+=w});y=Math.min(1,y+hg)}
+  }
+}
+function shapesToStack(){
+  for(const h of plan.ship.holds){const list=hStows(h.no).filter(s=>s.shape);freeTiers(list);
+    list.forEach(s=>s.tier=Math.min(plan.ship.tiers,s.tier));
+    const tiers=[...new Set(list.map(s=>s.tier))];tiers.forEach(k=>list.filter(s=>s.tier===k).sort((a,b)=>bb(a.shape.pts).x0-bb(b.shape.pts).x0).forEach((s,i)=>s.order=i));
+    list.forEach(s=>s.shape.k=shapeKey(s));}
+}
+function gravity(holdNo,x0,x1,yStart,exId,st=plan.stows){let floor=0;for(const o of hStows(holdNo,st)){if(o.id===exId||!o.shape)continue;const B=bb(o.shape.pts);if(Math.min(B.x1,x1)-Math.max(B.x0,x0)>0.005&&B.y1<=yStart+0.001)floor=Math.max(floor,B.y1)}return floor}
+function newShape(holdNo,t,sf,pt){
+  const h=H(holdNo),vf=Math.max(0.04,(t*sf)/(h.baleM3||1));
+  let w=hStows(holdNo).some(s=>s.shape)?0.5:1,hh=vf/w;if(hh>1){w=1;hh=Math.min(1,vf)}hh=Math.max(0.05,hh);
+  let x0=clamp01((pt?pt.x:0.5)-w/2);if(x0+w>1)x0=1-w;
+  let y0=gravity(holdNo,x0,x0+w,pt?clamp01(pt.y-hh/2):1);if(y0+hh>1)y0=Math.max(0,1-hh);
+  return {pts:rectPts(x0,y0,x0+w,y0+hh)};
+}
+function snapCands(holdNo,exId){const xs=[0,1,0.5],ys=[0,1];for(const o of hStows(holdNo))if(o.id!==exId&&o.shape){const B=bb(o.shape.pts);xs.push(B.x0,B.x1);ys.push(B.y0,B.y1)}return {xs,ys}}
+function snapV(v,c){if(!ui.snap)return clamp01(v);let best=null,m=0.015;for(const k of c){const d=Math.abs(k-v);if(d<m){m=d;best=k}}return clamp01(best!==null?best:Math.round(v*100)/100)}
+function snapShift(B,c){if(!ui.snap)return {dx:0,dy:0};const f=(vals,cs)=>{let d=0,m=0.015;for(const v of vals)for(const k of cs){const q=k-v;if(Math.abs(q)<m){m=Math.abs(q);d=q}}return d};return {dx:f([B.x0,B.x1],c.xs),dy:f([B.y0,B.y1],c.ys)}}
+function translated(pts,dx,dy){const B=bb(pts);dx=Math.min(1-B.x1,Math.max(-B.x0,dx));dy=Math.min(1-B.y1,Math.max(-B.y0,dy));return pts.map(([x,y])=>[r4(x+dx),r4(y+dy)])}
+function freeBody(h,list){
+  const sel=ui.sel&&ST(ui.sel);let svg='',lab='';
+  for(let i=1;i<10;i++)svg+=`<line class="fgrid" vector-effect="non-scaling-stroke" x1="0" y1="${i*100}" x2="1000" y2="${i*100}"/>`;
+  for(const s of list){if(!s.shape)continue;const p=PC(s.parcel);if(!p)continue;const c=pcol(p.dp),B=bb(s.shape.pts),dm=dimmed(p)?' dim':'';
+    const tip=`${p.id} ${p.grade} · ${fmt(s.t)} t · ${pname(p.lp)} to ${pname(p.dp)} · H${s.hold} T${s.tier}${s.locked?' · locked':''}`;
+    svg+=`<polygon class="fpoly${sel&&sel.id===s.id?' sel':''}${s.locked?' locked':''}${dm}" data-sid="${s.id}" vector-effect="non-scaling-stroke" points="${ptsStr(s.shape.pts)}" fill="${c}"><title>${esc(tip)}</title></polygon>`;
+    lab+=`<div class="flabel${dm}" data-lid="${s.id}" style="left:${B.x0*100}%;bottom:${B.y0*100}%;width:${B.w*100}%;height:${B.h*100}%;--ink:${ink(c)}"><span><i style="background:${pcol(p.lp)}"></i><b>${esc(p.id)}</b><span class="tn">${fmt(s.t)}</span><em>${esc(P(p.dp)?.code?.slice(2)||'')}</em></span></div>`}
+  const hnd=sel&&sel.hold===h.no&&sel.shape&&!sel.locked?handlesHtml(sel):'';
+  return `<div class="hold-body free" data-free-hold="${h.no}" style="--d:${h.H?(h.H/Math.max(...plan.ship.holds.map(x=>x.H||0))).toFixed(3):1}"><svg class="fsvg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">${svg}</svg>${lab}<span class="fh-wrap">${hnd}</span><div class="fband" hidden></div></div>`;
+}
+function handlesHtml(s){
+  const pts=s.shape.pts;let o='';
+  if(ui.pts){pts.forEach(([x,y],i)=>{o+=`<div class="fh v" data-h="v" data-i="${i}" title="Drag to reshape. Double-click to remove this point." style="left:${x*100}%;bottom:${y*100}%"></div>`;
+      const [x2,y2]=pts[(i+1)%pts.length];o+=`<div class="fh add" data-h="add" data-i="${i}" title="Drag to add a point" style="left:${(x+x2)/2*100}%;bottom:${(y+y2)/2*100}%"></div>`})}
+  else{const B=bb(pts),xm=(B.x0+B.x1)/2,ym=(B.y0+B.y1)/2;
+    [['nw',B.x0,B.y1],['n',xm,B.y1],['ne',B.x1,B.y1],['e',B.x1,ym],['se',B.x1,B.y0],['s',xm,B.y0],['sw',B.x0,B.y0],['w',B.x0,ym]].forEach(([d,x,y])=>o+=`<div class="fh" data-h="r" data-d="${d}" style="left:${x*100}%;bottom:${y*100}%"></div>`)}
+  return o;
+}
+function paintShape(s,body){
+  const poly=body.querySelector(`polygon[data-sid="${s.id}"]`),lab=body.querySelector(`.flabel[data-lid="${s.id}"]`);
+  if(poly)poly.setAttribute('points',ptsStr(s.shape.pts));
+  if(lab){const B=bb(s.shape.pts);Object.assign(lab.style,{left:B.x0*100+'%',bottom:B.y0*100+'%',width:B.w*100+'%',height:B.h*100+'%'})}
+  const w=body.querySelector('.fh-wrap');if(w)w.innerHTML=handlesHtml(s);
+}
+const ptIn=(body,e)=>{const r=body.getBoundingClientRect();return {x:clamp01((e.clientX-r.left)/r.width),y:clamp01(1-(e.clientY-r.top)/r.height)}};
+function commitFrom(snap,label){undoS.push(snap);if(undoS.length>200)undoS.shift();redoS=[];afterFree();if(label){plan.log.unshift({at:Date.now(),text:label});plan.log.length=Math.min(plan.log.length,300)}save();render()}
+let FD=null;
+document.addEventListener('pointerdown',e=>{
+  if(!isFree()||e.button!==0||D||ui.pick)return;
+  const body=e.target.closest('.hold-body.free');if(!body)return;
+  const hold=+body.dataset.freeHold,pt=ptIn(body,e),hnd=e.target.closest('.fh'),poly=e.target.closest('polygon[data-sid]');
+  const base={body,hold,start:pt,x0:e.clientX,y0:e.clientY,snap:JSON.stringify(plan),moved:false};
+  if(hnd&&ui.sel){const s=ST(ui.sel);const orig=s.shape.pts.map(p=>[...p]);
+    if(hnd.dataset.h==='add'){const i=+hnd.dataset.i,[x1,y1]=orig[i],[x2,y2]=orig[(i+1)%orig.length];s.shape.pts.splice(i+1,0,[r4((x1+x2)/2),r4((y1+y2)/2)]);FD={...base,mode:'vertex',i:i+1,s,orig,moved:true}}
+    else FD={...base,mode:hnd.dataset.h==='v'?'vertex':'resize',d:hnd.dataset.d,i:+hnd.dataset.i,s,orig,ob:bb(orig)};
+  }else if(poly&&!ui.draw){const s=ST(poly.dataset.sid);FD={...base,mode:s.locked?'select':'move',s,orig:s.shape.pts.map(p=>[...p]),poly}}
+  else if(ui.draw)FD={...base,mode:'draw'};
+  else FD={...base,mode:'empty'};
+  e.preventDefault();
+});
+window.addEventListener('pointermove',e=>{
+  if(!FD)return;
+  if(!FD.moved){if(Math.hypot(e.clientX-FD.x0,e.clientY-FD.y0)<4)return;FD.moved=true;
+    if(FD.mode==='move'){if(ui.sel!==FD.s.id){ui.sel=FD.s.id;render();FD.body=$(`.hold-body.free[data-free-hold="${FD.hold}"]`);FD.poly=FD.body.querySelector(`polygon[data-sid="${FD.s.id}"]`)}FD.body.classList.add('fmoving');FD.poly&&FD.poly.classList.add('active')}}
+  e.preventDefault();
+  const pt=ptIn(FD.body,e),dx=pt.x-FD.start.x,dy=pt.y-FD.start.y,s=FD.s;
+  if(FD.mode==='move'){
+    $$('.hold-body.t-ok,.hold-body.t-warn,.hold-body.t-block').forEach(b=>b.classList.remove('t-ok','t-warn','t-block'));
+    const el=document.elementFromPoint(e.clientX,e.clientY),ob=el&&el.closest('.hold-body.free'),tr=el&&el.closest('#tray');
+    FD.over=null;FD.tray=!!tr;if(tr){tr.classList.add('t-ok');}else $('#tray').classList.remove('t-ok');
+    if(ob&&+ob.dataset.freeHold!==FD.hold){const n=+ob.dataset.freeHold,r=canDrop({kind:'stow',id:s.id,hold:n,tier:1,t:s.t});ob.classList.add('t-'+r.level);FD.over={n,body:ob,pt:ptIn(ob,e),r}}
+    let np=translated(FD.orig,dx,dy);const sh=snapShift(bb(np),snapCands(FD.hold,s.id));np=translated(np,sh.dx,sh.dy);s.shape.pts=np;paintShape(s,FD.body);
+  }else if(FD.mode==='resize'){
+    const B=FD.ob,c=snapCands(FD.hold,s.id);let {x0,x1,y0,y1}=B;const d=FD.d;
+    if(d.includes('w'))x0=Math.min(snapV(pt.x,c.xs),x1-0.02);if(d.includes('e'))x1=Math.max(snapV(pt.x,c.xs),x0+0.02);
+    if(d.includes('s'))y0=Math.min(snapV(pt.y,c.ys),y1-0.02);if(d.includes('n'))y1=Math.max(snapV(pt.y,c.ys),y0+0.02);
+    s.shape.pts=FD.orig.map(([x,y])=>[r4(x0+(B.w?(x-B.x0)/B.w:0)*(x1-x0)),r4(y0+(B.h?(y-B.y0)/B.h:0)*(y1-y0))]);paintShape(s,FD.body);
+  }else if(FD.mode==='vertex'){const c=snapCands(FD.hold,s.id);s.shape.pts[FD.i]=[r4(snapV(pt.x,c.xs)),r4(snapV(pt.y,c.ys))];paintShape(s,FD.body)}
+  else if(FD.mode==='draw'){const b=FD.body.querySelector('.fband');b.hidden=false;const c=snapCands(FD.hold);const a={x:snapV(FD.start.x,c.xs),y:snapV(FD.start.y,c.ys)},q={x:snapV(pt.x,c.xs),y:snapV(pt.y,c.ys)};FD.rect=[Math.min(a.x,q.x),Math.min(a.y,q.y),Math.max(a.x,q.x),Math.max(a.y,q.y)];
+    Object.assign(b.style,{left:FD.rect[0]*100+'%',bottom:FD.rect[1]*100+'%',width:(FD.rect[2]-FD.rect[0])*100+'%',height:(FD.rect[3]-FD.rect[1])*100+'%'})}
+},{passive:false});
+window.addEventListener('pointerup',e=>{
+  if(!FD)return;const f=FD;FD=null;$$('.hold-body.t-ok,.hold-body.t-warn,.hold-body.t-block').forEach(b=>b.classList.remove('t-ok','t-warn','t-block'));$('#tray').classList.remove('t-ok');
+  const s=f.s;
+  if(!f.moved){if(f.mode==='empty'){if(ui.sel){ui.sel=null;render()}}else if(s&&ui.sel!==s.id){ui.sel=s.id;render()}return}
+  if(f.mode==='move'){
+    if(f.tray){s.shape.pts=f.orig;const snap=f.snap;plan.stows=plan.stows.filter(x=>x.id!==s.id);ui.sel=null;commitFrom(snap,`Unstowed ${fmt(s.t)} t ${desc(s.parcel)} from H${s.hold}`);return}
+    if(f.over){if(f.over.r.level==='block'){s.shape.pts=f.orig;render();toast(f.over.r.msg,'crit');return}
+      const B=bb(f.orig);let np=translated(f.orig,f.over.pt.x-(B.x0+B.x1)/2,f.over.pt.y-(B.y0+B.y1)/2);const from=s.hold;s.hold=f.over.n;s.shape.pts=np;
+      commitFrom(f.snap,`Moved ${fmt(s.t)} t ${desc(s.parcel)} from H${from} to H${s.hold}`);if(f.over.r.level==='warn')toast(f.over.r.msg,'warn');return}
+    const before=JSON.parse(f.snap),was=new Set();{const keep=plan;plan=before;holdIssues(s.hold).forEach(i=>was.add(i.msg));plan=keep}commitFrom(f.snap,null);const nw=holdIssues(s.hold).find(i=>!was.has(i.msg));if(nw)toast(nw.msg,nw.sev==='crit'?'crit':'warn');return}
+  if(f.mode==='resize'||f.mode==='vertex'){commitFrom(f.snap,null);return}
+  if(f.mode==='draw'){f.body.querySelector('.fband').hidden=true;const r=f.rect;if(!r||r[2]-r[0]<0.02||r[3]-r[1]<0.02)return;drawDialog(f.hold,rectPts(r[0],r[1],r[2],r[3]))}
+});
+window.addEventListener('pointercancel',()=>{if(!FD)return;if(FD.s&&FD.orig)FD.s.shape.pts=FD.orig;FD=null;render()});
+document.addEventListener('dblclick',e=>{const h=e.target.closest('.fh.v');if(!h||!ui.sel)return;const s=ST(ui.sel);if(s.shape.pts.length<=3){toast('A shape needs at least 3 points.','warn');return}
+  commit(()=>{s.shape.pts.splice(+h.dataset.i,1)},null)});
+function drawDialog(hold,pts){
+  const avail=plan.parcels.filter(p=>remOf(p.id)>0.001);
+  if(!avail.length){toast('All booked cargo is stowed. Add parcels in Setup or unstow a block first.','warn');return}
+  const h=H(hold),ar=polyArea(pts),est=p=>r3(Math.min(remOf(p.id),ar*h.baleM3/(p.sf||1)));
+  const first=(ui.lastDrawParcel&&avail.find(p=>p.id===ui.lastDrawParcel))||avail[0];
+  modal(`New cargo block in Hold ${hold}`,`<label for="d-p">Parcel</label><select id="d-p">${avail.map(p=>`<option value="${esc(p.id)}"${p===first?' selected':''}>${esc(p.id)} ${esc(p.grade)} · ${esc(pname(p.lp))} to ${esc(pname(p.dp))} · ${fmt(remOf(p.id))} t left</option>`).join('')}</select>
+   <label for="q-in">Tonnes</label><input id="q-in" type="number" inputmode="decimal" min="0" step="any" value="${est(first)}"><div class="quick" id="d-q"></div>
+   <p class="hint" id="d-info"></p><p class="err" id="q-err" role="alert"></p>`,
+   [{label:'Cancel'},{label:'Add block',kind:'primary',run:()=>{
+     const p=PC($('#d-p').value),t=r3(parseFloat($('#q-in').value)),rem=remOf(p.id);
+     if(!(t>0)){$('#q-err').textContent='Enter a quantity above zero.';return false}
+     if(t>rem+0.001){$('#q-err').textContent=`Only ${fmt(rem)} t of ${p.id} is left to stow.`;return false}
+     const r=canDrop({kind:'parcel',id:p.id,hold,tier:1,t,shape:{pts}});if(r.level==='block'){$('#q-err').textContent=r.msg;return false}
+     ui.lastDrawParcel=p.id;
+     commit(()=>{const n={id:uid('s'),parcel:p.id,hold,tier:1,order:0,t,locked:false,shape:{pts}};plan.stows.push(n);ui.sel=n.id},`Drew ${fmt(t)} t ${desc(p.id)} in H${hold}`);
+     if(r.level==='warn')setTimeout(()=>toast(r.msg,'warn'),0)}}]);
+  const upd=()=>{const p=PC($('#d-p').value),e=est(p),rem=remOf(p.id);$('#d-q').innerHTML=`<button class="btn sm" type="button" data-q="${e}">Fits drawn area · ${fmt(e)} t</button><button class="btn sm" type="button" data-q="${rem}">All remaining · ${fmt(rem)} t</button>`;
+    $$('#d-q [data-q]').forEach(b=>b.onclick=()=>{$('#q-in').value=b.dataset.q});
+    $('#d-info').textContent=`Drawn area is ${(ar*100).toFixed(0)}% of the hold profile. At SF ${p.sf} m³/t that is about ${fmt(ar*h.baleM3/(p.sf||1))} t.`};
+  $('#d-p').onchange=()=>{upd();$('#q-in').value=est(PC($('#d-p').value))};upd();
+}
+
 /* ---------- rules ---------- */
 function holdIssues(n,st=plan.stows){
   const h=H(n),list=hStows(n,st),out=[];if(!h)return out;
@@ -447,7 +621,7 @@ function holdIssues(n,st=plan.stows){
   if(t>hMax(h)+0.001)out.push({sev:'crit',hold:n,msg:area(h)?`Hold ${n}: ${(t/area(h)).toFixed(1)} t/m² on tank top exceeds ${h.ttT} t/m² (max ${fmt(hMax(h))} t)`:`Hold ${n}: ${fmt(t)} t exceeds hold max ${fmt(hMax(h))} t`});
   if(v>h.baleM3+0.5)out.push({sev:'warn',hold:n,msg:`Hold ${n}: ${fmt(v)} m³ exceeds bale capacity ${fmt(h.baleM3)} m³`});
   for(const lo of list)for(const hi of list){
-    if(hi.tier<=lo.tier)continue;const a=PC(lo.parcel),b=PC(hi.parcel);if(!a||!b)continue;
+    if(isFree()&&lo.shape&&hi.shape?!above(hi,lo):hi.tier<=lo.tier)continue;const a=PC(lo.parcel),b=PC(hi.parcel);if(!a||!b)continue;
     if(seq(a.dp)<seq(b.dp))out.push({sev:'warn',hold:n,msg:`Hold ${n}: ${fmt(hi.t)} t for ${pname(b.dp)} (T${hi.tier}) overstows ${fmt(lo.t)} t for ${pname(a.dp)} (T${lo.tier})`});
     if(seq(a.lp)>seq(b.lp))out.push({sev:'warn',hold:n,msg:`Hold ${n}: T${lo.tier} cargo from ${pname(a.lp)} loads after T${hi.tier} cargo from ${pname(b.lp)}, restow needed`});
   }
@@ -466,7 +640,7 @@ function validate(){
 }
 function simulate(mv){
   const st=plan.stows.map(s=>({...s}));
-  if(mv.kind==='parcel')st.push({id:'_n',parcel:mv.id,hold:mv.hold,tier:mv.tier,order:999,t:mv.t});
+  if(mv.kind==='parcel')st.push({id:'_n',parcel:mv.id,hold:mv.hold,tier:mv.tier,order:999,t:mv.t,shape:mv.shape||(isFree()?newShape(mv.hold,mv.t,PC(mv.id)?.sf||1,mv.pt):undefined)});
   else{const s=st.find(x=>x.id===mv.id);if(mv.t>=s.t-0.001){s.hold=mv.hold;s.tier=mv.tier}else{s.t-=mv.t;st.push({...s,id:'_n',hold:mv.hold,tier:mv.tier,t:mv.t})}}
   return st;
 }
@@ -481,7 +655,7 @@ function canDrop(mv){
 function save(){try{localStorage.setItem(LS,JSON.stringify(plan));ui.savedAt=new Date()}catch(e){ui.savedAt=null}}
 function commit(fn,label){
   undoS.push(JSON.stringify(plan));if(undoS.length>200)undoS.shift();redoS=[];
-  fn();if(label){plan.log.unshift({at:Date.now(),text:label});plan.log.length=Math.min(plan.log.length,300)}
+  fn();afterFree();if(label){plan.log.unshift({at:Date.now(),text:label});plan.log.length=Math.min(plan.log.length,300)}
   save();render();
 }
 function undo(){if(!undoS.length)return;redoS.push(JSON.stringify(plan));plan=JSON.parse(undoS.pop());if(ui.sel&&!ST(ui.sel))ui.sel=null;save();render();toast('Undone')}
@@ -497,14 +671,14 @@ function applyMove(mv){
   mv.t=r3(mv.t);const r=canDrop(mv);
   if(r.level==='block'){toast(r.msg,'crit');return false}
   let label;
-  if(mv.kind==='parcel')label=`Stowed ${fmt(mv.t)} t ${desc(mv.id)} in H${mv.hold} T${mv.tier}`;
+  if(mv.kind==='parcel')label=`Stowed ${fmt(mv.t)} t ${desc(mv.id)} in H${mv.hold}${isFree()?'':' T'+mv.tier}`;
   else{const s=ST(mv.id);label=`Moved ${fmt(mv.t)} t ${desc(s.parcel)} from H${s.hold} T${s.tier} to H${mv.hold} T${mv.tier}`}
   commit(()=>{
     let tg;
-    if(mv.kind==='parcel'){tg={id:uid('s'),parcel:mv.id,hold:mv.hold,tier:mv.tier,order:0,t:mv.t,locked:false};plan.stows.push(tg)}
+    if(mv.kind==='parcel'){tg={id:uid('s'),parcel:mv.id,hold:mv.hold,tier:mv.tier,order:0,t:mv.t,locked:false};if(isFree())tg.shape=newShape(mv.hold,mv.t,PC(mv.id).sf||1,mv.pt);plan.stows.push(tg)}
     else{const s=ST(mv.id);if(mv.t>=s.t-0.001){s.hold=mv.hold;s.tier=mv.tier;tg=s}else{s.t=r3(s.t-mv.t);tg={...s,id:uid('s'),hold:mv.hold,tier:mv.tier,t:mv.t};plan.stows.push(tg)}}
     place(tg,mv.beforeId);
-    const twin=plan.stows.find(x=>x!==tg&&x.parcel===tg.parcel&&x.hold===tg.hold&&x.tier===tg.tier&&!x.locked&&!tg.locked);
+    const twin=!isFree()&&plan.stows.find(x=>x!==tg&&x.parcel===tg.parcel&&x.hold===tg.hold&&x.tier===tg.tier&&!x.locked&&!tg.locked);
     if(twin){twin.t=r3(twin.t+tg.t);plan.stows=plan.stows.filter(x=>x!==tg);tg=twin}
     ui.sel=tg.id;
   },label);
@@ -569,9 +743,14 @@ function renderRotation(){
   const run=(list,lp)=>list.length?list.map(p=>chip(p,lp)).join('<span class="arrow">→</span>'):'<span class="empty-note">None set</span>';
   $('#rotation').innerHTML=`<div class="run"><span class="lbl">Load</span>${run(LPs(),true)}</div><div class="run"><span class="lbl">Discharge</span>${run(DPs(),false)}</div>
    <div class="tools">${ui.focus?`<button class="btn sm" data-focus="">Show all ports</button>`:''}
-   <div class="seg" role="group" aria-label="Block height"><button data-scale="vol" aria-pressed="${ui.scale==='vol'}">Volume</button><button data-scale="wt" aria-pressed="${ui.scale==='wt'}">Weight</button></div>
-   <button class="btn sm${ui.part?' on':''}" id="b-part" aria-pressed="${ui.part}" title="When on, every drop asks how many tonnes to move">Move part</button></div>`;
-  $('#scalename').textContent=ui.scale==='vol'?'volume':'weight';
+   <div class="seg" role="group" aria-label="Layout"><button data-layout="stack" aria-pressed="${!isFree()}" title="Blocks stack in tiers automatically">Stacked</button><button data-layout="free" aria-pressed="${isFree()}" title="Draw, move, resize and reshape blocks anywhere">Free draw</button></div>
+   ${isFree()?`<button class="btn sm${ui.draw?' on':''}" id="b-draw" aria-pressed="${ui.draw}" title="Drag inside a hold to draw a new cargo block">Draw block</button><button class="btn sm${ui.snap?' on':''}" id="b-snap" aria-pressed="${ui.snap}" title="Snap edges to the grid, hold sides and other blocks">Snap</button>`
+   :`<div class="seg" role="group" aria-label="Block height"><button data-scale="vol" aria-pressed="${ui.scale==='vol'}">Volume</button><button data-scale="wt" aria-pressed="${ui.scale==='wt'}">Weight</button></div>
+   <button class="btn sm${ui.part?' on':''}" id="b-part" aria-pressed="${ui.part}" title="When on, every drop asks how many tonnes to move">Move part</button>`}</div>`;
+  document.body.classList.toggle('drawmode',isFree()&&ui.draw);
+  $('#legend-tip').textContent=isFree()?'Drag a block to move it, even into another hold · drag the square handles to resize · Edit points to change the shape · Draw block to sketch a new one':'Drag to move · Shift while dropping moves part · drop on a hold number to place on top of stow';
+  $('#legend-key').textContent=isFree()?'Block fill = discharge port, small square = load port':'Block fill = discharge port, left stripe = load port';
+  $('#legend-h').innerHTML=isFree()?'Free draw: shapes are drawn by you, tonnes are set per block':`Height = share of hold capacity (<span id="scalename">${ui.scale==='vol'?'volume':'weight'}</span>)`;
 }
 function dimmed(p){return ui.focus&&p&&p.lp!==ui.focus&&p.dp!==ui.focus}
 const GANTRY=`<svg class="gantry" viewBox="0 0 100 104" preserveAspectRatio="none" aria-hidden="true">
@@ -590,20 +769,21 @@ function renderShip(){
     const list=hStows(h.no),t=sum(list,s=>s.t),v=sum(list,s=>s.t*(PC(s.parcel)?.sf||0));
     const wt=pct(t,hMax(h)),vol=pct(v,h.baleM3),top=maxTier(h.no),iss=holdIssues(h.no);
     let body='';
-    for(let k=1;k<=top;k++){
+    if(!isFree())for(let k=1;k<=top;k++){
       const ts=list.filter(s=>s.tier===k).sort(byOrder);
       if(!ts.length){body+=`<div class="layer empty" data-hold="${h.no}" data-tier="${k}" aria-label="Hold ${h.no} tier ${k} empty"></div>`;continue}
       const frac=ui.scale==='vol'?pct(sum(ts,s=>s.t*(PC(s.parcel)?.sf||0)),h.baleM3):pct(sum(ts,s=>s.t),hMax(h));
       body+=`<div class="layer" data-hold="${h.no}" data-tier="${k}" style="flex:0 1 ${Math.max(frac,0.1).toFixed(2)}%"><span class="tier-tag">T${k}</span>${ts.map(stowHtml).join('')}</div>`;
     }
-    if(top<tiers)body+=`<div class="layer free" data-hold="${h.no}" data-tier="${top+1}"><span>T${top+1}</span></div>`;
+    if(isFree()){}else if(top<tiers)body+=`<div class="layer free" data-hold="${h.no}" data-tier="${top+1}"><span>T${top+1}</span></div>`;
     else body+=`<div class="layer fullstack" aria-hidden="true"></div>`;
+    const bodyHtml=isFree()?freeBody(h,list):`<div class="hold-body" style="--d:${h.H?(h.H/Math.max(...plan.ship.holds.map(x=>x.H||0))).toFixed(3):1}">${body}</div>`;
     const sev=iss.some(i=>i.sev==='crit')?'crit':iss.length?'warn':'';
     const bs=Math.max(wt,vol)>100?'crit':Math.max(wt,vol)>95?'warn':'';
     const n=plan.ship.holds.length,crane=h.no===n||h.no===n-1;
     html+=`<div class="hold" id="hold-${h.no}" data-holdcol="${h.no}">${crane?GANTRY+(h.no===n?'<span class="gantry-tag">2 × GANTRY CRANE, PARKED AFT</span>':''):''}
       <div class="hold-head" data-hold-auto="${h.no}" title="Hold ${h.no}${iss.length?': '+esc(iss.map(i=>i.msg).join('; ')):''}">${h.no}${sev?`<svg class="ico ${sev}" viewBox="0 0 24 24" role="img" aria-label="${iss.length} issues"><path d="M12 3 2 20h20Z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>`:''}</div>
-      <div class="hold-body" style="--d:${h.H?(h.H/Math.max(...plan.ship.holds.map(x=>x.H||0))).toFixed(3):1}">${body}</div>
+      ${bodyHtml}
       <div class="hold-foot" data-hold-auto="${h.no}"><div class="t">${fmt(t)} t</div><div class="p">${vol.toFixed(0)}% vol${area(h)?'':' · '+wt.toFixed(0)+'% wt'}</div><div class="bar"><i class="${bs}" style="width:${Math.min(100,Math.max(wt,vol)).toFixed(1)}%"></i></div>${h.L?`<div class="dim-l" title="L × B × H metres">${dimS(h)}</div><div class="dim-l">${fmtB(h.baleM3)} m³</div><div class="dim-l${t/area(h)>h.ttT?' over':''}" title="Tank top load / limit">TT ${(t/area(h)).toFixed(1)}/${h.ttT} t/m²</div>`:''}</div></div>`;
   }
   $('#holds').innerHTML=html;
@@ -620,19 +800,21 @@ function renderInspector(){
   const p=PC(s.parcel);el.hidden=false;
   const holdOpts=plan.ship.holds.map(h=>`<option value="${h.no}"${h.no===s.hold?' selected':''}>Hold ${h.no}</option>`).join('');
   const tierOpts=Array.from({length:plan.ship.tiers},(_,i)=>`<option value="${i+1}"${i+1===s.tier?' selected':''}>Tier ${i+1}</option>`).join('');
-  el.innerHTML=`<h2>Selected block <span class="n">H${s.hold} · T${s.tier}</span></h2>
+  el.innerHTML=`<h2>Selected block <span class="n">H${s.hold} · ${isFree()?'level '+s.tier:'T'+s.tier}</span></h2>
    <dl><dt>Parcel</dt><dd><b>${esc(p.id)}</b> ${esc(p.grade)} <span style="color:var(--muted)">${esc(p.ref||'')}</span></dd>
    <dt>Route</dt><dd><span class="dot sq" style="--c:${pcol(p.lp)}"></span>${esc(pname(p.lp))} → <span class="dot" style="--c:${pcol(p.dp)}"></span>${esc(pname(p.dp))}</dd>
    <dt>This block</dt><dd class="num">${fmt(s.t)} t · ${fmt(s.t*p.sf)} m³</dd>
    <dt>Parcel total</dt><dd class="num">${fmt(stowedOf(p.id))} of ${fmt(p.bookedT)} t stowed</dd></dl>
    <div class="acts">
-    <button class="btn sm" data-act="tapmove"${s.locked?' disabled':''}>Tap to move</button>
+    ${isFree()?'':`<button class="btn sm" data-act="tapmove"${s.locked?' disabled':''}>Tap to move</button>`}
     <button class="btn sm" data-act="split">Split</button>
     <button class="btn sm" data-act="lock">${s.locked?'Unlock':'Lock'}</button>
     <button class="btn sm danger" data-act="unstow">Unstow</button>
     <button class="btn sm" data-act="desel">Done</button></div>
-   <div class="moveto"><label for="mv-h" class="hint" style="margin:0">Move to</label><select id="mv-h">${holdOpts}</select><select id="mv-t">${tierOpts}</select><button class="btn sm primary" data-act="moveto"${s.locked?' disabled':''}>Move</button><button class="btn sm" data-act="movepart"${s.locked?' disabled':''}>Move part</button></div>
-   <p class="hint"><kbd>←</kbd><kbd>→</kbd> hold · <kbd>↑</kbd><kbd>↓</kbd> tier · <kbd>Del</kbd> unstow · <kbd>Esc</kbd> deselect</p>`;
+   ${isFree()?`<div class="tools2"><button class="btn sm${ui.pts?' on':''}" data-act="pts" aria-pressed="${ui.pts}"${s.locked?' disabled':''}>Edit points</button><button class="btn sm" data-act="rect"${s.locked?' disabled':''}>Make rectangle</button><button class="btn sm" data-act="fit"${s.locked?' disabled':''}>Fit height to tonnes</button><button class="btn sm" data-act="totons"${s.locked?' disabled':''}>Tonnes from shape</button><button class="btn sm" data-act="front">Bring to front</button><button class="btn sm" data-act="back">Send to back</button></div>
+   <p class="hint">Shape covers ${(polyArea(s.shape.pts)*100).toFixed(0)}% of the hold profile; cargo volume is ${(s.t*p.sf/(H(s.hold).baleM3||1)*100).toFixed(0)}% of bale.</p>`:''}
+   <div class="moveto"><label for="mv-h" class="hint" style="margin:0">Move to</label><select id="mv-h">${holdOpts}</select>${isFree()?'':`<select id="mv-t">${tierOpts}</select>`}<button class="btn sm primary" data-act="moveto"${s.locked?' disabled':''}>Move</button>${isFree()?'':`<button class="btn sm" data-act="movepart"${s.locked?' disabled':''}>Move part</button>`}</div>
+   <p class="hint">${isFree()?'<kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> nudge (Shift = bigger) · <kbd>Del</kbd> unstow · <kbd>Esc</kbd> deselect'+(ui.pts?'<br>Drag a round point to move it, drag a dashed point to add one, double-click a point to remove it':''):'<kbd>←</kbd><kbd>→</kbd> hold · <kbd>↑</kbd><kbd>↓</kbd> tier · <kbd>Del</kbd> unstow · <kbd>Esc</kbd> deselect'}</p>`;
 }
 function renderTray(){
   const el=$('#tray');let total=0,groups='';
@@ -644,7 +826,7 @@ function renderTray(){
   lps.forEach(lp=>groups+=grp(lp.name,lp.color,plan.parcels.filter(p=>p.lp===lp.id)));
   if(orphan.length)groups+=grp('No load port set','#888888',orphan);
   el.innerHTML=`<h2>Cargo to stow <span class="n">${fmt(total)} t</span></h2>${groups||`<p class="empty-note">${plan.parcels.length?'All booked cargo is stowed. Drag a block here to unstow it.':'No cargo booked yet. Add ports and parcels in Setup.'}</p>`}
-   ${groups?'<p class="hint">Drag a parcel onto a tier, or tap it and then tap a tier. Drop a block here to unstow it.</p>':''}`;
+   ${groups?`<p class="hint">${isFree()?'Drag a parcel into a hold, or turn on Draw block and sketch its shape. Drop a block here to unstow it.':'Drag a parcel onto a tier, or tap it and then tap a tier. Drop a block here to unstow it.'}</p>`:''}`;
 }
 
 /* ---------- tables ---------- */
@@ -820,6 +1002,7 @@ function resolveTarget(x,y){
   const el=document.elementFromPoint(x,y);if(!el)return null;
   if(el.closest('#tray'))return {tray:true,el:$('#tray')};
   const auto=el.closest('[data-hold-auto]');if(auto){const n=+auto.dataset.holdAuto;return {hold:n,tier:autoTier(n),auto:true,el:$('#hold-'+n)}}
+  const fb=el.closest('.hold-body.free');if(fb){const n=+fb.dataset.freeHold;return {hold:n,tier:1,pt:ptIn(fb,{clientX:x,clientY:y}),el:fb}}
   const st=el.closest('.stow[data-id]');if(st){const s=ST(st.dataset.id);return {hold:s.hold,tier:s.tier,beforeId:s.id,el:st.closest('.layer')}}
   const ly=el.closest('.layer[data-tier]');if(ly)return {hold:+ly.dataset.hold,tier:+ly.dataset.tier,el:ly};
   return null;
@@ -840,11 +1023,11 @@ function moveDrag(e){
   if(!tg){g3.className='g3';g3.textContent='Drop on a hold tier';return}
   if(tg.tray){if(D.kind==='stow'){tg.el.classList.add('t-ok');g3.className='g3 ok';g3.textContent='Drop to unstow'}else{g3.className='g3';g3.textContent='Already unstowed'}return}
   if(D.kind==='stow'&&tg.beforeId===D.id){g3.className='g3';g3.textContent='Same place';return}
-  const r=canDrop({kind:D.kind,id:D.id,hold:tg.hold,tier:tg.tier,t:dragQty()});
+  const r=canDrop({kind:D.kind,id:D.id,hold:tg.hold,tier:tg.tier,t:dragQty(),pt:tg.pt});
   if(tg.auto)tg.el.classList.add('t-auto');
-  const lay=tg.auto?$(`.layer[data-hold="${tg.hold}"][data-tier="${tg.tier}"]`):tg.el;lay&&lay.classList.add('t-'+r.level);
+  const lay=tg.auto?(isFree()?$(`.hold-body.free[data-free-hold="${tg.hold}"]`):$(`.layer[data-hold="${tg.hold}"][data-tier="${tg.tier}"]`)):tg.el;lay&&lay.classList.add('t-'+r.level);
   const h=H(tg.hold);g3.className='g3 '+r.level;
-  g3.innerHTML=`H${tg.hold} T${tg.tier} · <span class="num">${fmt(r.before)} → ${fmt(r.after)} t (${pct(r.after,hMax(h)).toFixed(0)}% of TT limit)</span><br>${esc(r.level==='ok'?'No conflicts':r.msg)}`;
+  g3.innerHTML=`H${tg.hold}${isFree()?'':' T'+tg.tier} · <span class="num">${fmt(r.before)} → ${fmt(r.after)} t (${pct(r.after,hMax(h)).toFixed(0)}% of TT limit)</span><br>${esc(r.level==='ok'?'No conflicts':r.msg)}`;
 }
 function endDrag(d,e){
   d.g&&d.g.remove();document.body.classList.remove('dragging');clearHi();d.el.classList.remove('src');
@@ -854,11 +1037,11 @@ function doDrop(kind,id,tg,partKey){
   const d={kind,id};if(!tg)return;
   if(tg.tray){if(d.kind==='stow')unstow(d.id);return}
   if(d.kind==='stow'&&tg.beforeId===d.id)return;
-  const mv={kind:d.kind,id:d.id,hold:tg.hold,tier:tg.tier,beforeId:tg.beforeId};
+  const mv={kind:d.kind,id:d.id,hold:tg.hold,tier:tg.tier,beforeId:tg.beforeId,pt:tg.pt};
   const h=H(tg.hold),room=r3(hMax(h)-hT(tg.hold)+(d.kind==='stow'&&ST(d.id).hold===tg.hold?ST(d.id).t:0));
   if(d.kind==='parcel'){
     const rem=remOf(d.id),def=room>0?Math.min(rem,room):rem;
-    qty({title:`Stow ${d.id} in Hold ${tg.hold}, Tier ${tg.tier}`,def,max:rem,info:`${fmt(rem)} t remaining for this parcel. Hold ${tg.hold} has ${fmt(Math.max(0,room))} t of room.`,
+    qty({title:`Stow ${d.id} in Hold ${tg.hold}${isFree()?'':', Tier '+tg.tier}`,def,max:rem,info:`${fmt(rem)} t remaining for this parcel. Hold ${tg.hold} has ${fmt(Math.max(0,room))} t of room.`,
       quick:[{l:'All remaining',v:rem},...(room>0&&room<rem?[{l:'Fill hold',v:room}]:[]),{l:'Half',v:r3(rem/2)}],ok:'Stow',run:t=>applyMove({...mv,t})});
   }else{
     const s=ST(d.id);
@@ -881,7 +1064,7 @@ window.addEventListener('pointerup',e=>{if(!D)return;const d=D;D=null;stopScroll
   endDrag(d,e)});
 document.addEventListener('click',e=>{
   if(!ui.pick||e.target.closest('[data-drag],button,#pickbar'))return;
-  const hit=e.target.closest('.layer[data-tier],[data-hold-auto],#tray');if(!hit)return;
+  const hit=e.target.closest('.layer[data-tier],[data-hold-auto],#tray,.hold-body.free');if(!hit)return;
   const tg=resolveTarget(e.clientX,e.clientY);const k=ui.pick;ui.pick=null;
   if(tg&&tg.tray&&k.kind==='parcel'){render();return}
   doDrop(k.kind,k.id,tg,false);render();
@@ -901,6 +1084,11 @@ document.addEventListener('click',e=>{
   if(t.dataset.focus!==undefined){ui.focus=t.dataset.focus&&ui.focus!==t.dataset.focus?t.dataset.focus:null;render();return}
   if(t.dataset.tab){ui.tab=t.dataset.tab;render();return}
   if(t.dataset.scale){ui.scale=t.dataset.scale;render();return}
+  if(t.dataset.layout){const to=t.dataset.layout;if((to==='free')===isFree())return;
+    commit(()=>{if(to==='free'){stackToShapes();plan.layout='free'}else{shapesToStack();plan.layout='stack';ui.draw=false}},to==='free'?'Switched to free draw layout':'Switched to stacked layout');
+    toast(to==='free'?'Free draw: drag, resize and reshape blocks anywhere. Draw block sketches a new one.':'Stacked: blocks arranged in tiers from their drawn positions.');return}
+  if(t.id==='b-draw'){ui.draw=!ui.draw;if(ui.draw)ui.sel=null;render();if(ui.draw)toast('Drag inside any hold to draw a cargo block.');return}
+  if(t.id==='b-snap'){ui.snap=!ui.snap;render();return}
   if(t.dataset.show){const h=$('#hold-'+t.dataset.show);h.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});h.classList.remove('flash');void h.offsetWidth;h.classList.add('flash');return}
   if(t.dataset.clear){const n=+t.dataset.clear;confirmBox(`Clear Hold ${n}?`,`All ${fmt(hT(n))} t in Hold ${n} goes back to the cargo tray. You can undo this.`,'Clear hold',()=>commit(()=>{plan.stows=plan.stows.filter(s=>s.hold!==n||s.locked)},`Cleared Hold ${n}`));return}
   if(t.dataset.addPort){addPort(t.dataset.addPort);return}
@@ -910,11 +1098,16 @@ document.addEventListener('click',e=>{
   if(act==='csv'){copyText(lastCSV,'Table copied as CSV. Paste into Excel.');return}
   if(s){
     if(act==='desel'){ui.sel=null;render()}
+    if(act==='pts'){ui.pts=!ui.pts;render()}
+    if(act==='rect'){const B=bb(s.shape.pts);commit(()=>{s.shape.pts=rectPts(B.x0,B.y0,B.x1,B.y1)},null)}
+    if(act==='fit'){const B=bb(s.shape.pts),vf=s.t*PC(s.parcel).sf/(H(s.hold).baleM3||1),nh=Math.min(1-B.y0,Math.max(0.02,vf/(B.w||1)));commit(()=>{s.shape.pts=s.shape.pts.map(([x,y])=>[x,r4(B.y0+(B.h?(y-B.y0)/B.h:0)*nh)])},null)}
+    if(act==='totons'){const p=PC(s.parcel),est=r3(polyArea(s.shape.pts)*H(s.hold).baleM3/(p.sf||1)),maxT=r3(s.t+remOf(p.id));qty({title:`Set tonnes for ${p.id} from its shape`,def:Math.min(est,maxT),max:maxT,info:`The shape holds about ${fmt(est)} t at SF ${p.sf}. Up to ${fmt(maxT)} t is available for this parcel.`,ok:'Set tonnes',run:q=>{const r=canDrop({kind:'stow',id:s.id,hold:s.hold,tier:s.tier,t:s.t});commit(()=>{s.t=q},`Set ${p.id} in H${s.hold} to ${fmt(q)} t`);const w=holdIssues(s.hold).find(i=>i.sev==='crit');if(w)toast(w.msg,'crit')}})}
+    if(act==='front'||act==='back'){commit(()=>{plan.stows=plan.stows.filter(x=>x!==s);act==='front'?plan.stows.push(s):plan.stows.unshift(s)},null)}
     if(act==='tapmove'){ui.pick={kind:'stow',id:s.id};render()}
     if(act==='unstow')unstow(s.id);
     if(act==='lock')commit(()=>{s.locked=!s.locked},`${s.locked?'Unlocked':'Locked'} ${s.parcel} in H${s.hold} T${s.tier}`);
-    if(act==='split')qty({title:`Split ${s.parcel} block`,def:r3(s.t/2),max:r3(s.t-0.001),info:`Enter the tonnes for the new block. It appears beside the original in H${s.hold} T${s.tier}, ready to drag.`,ok:'Split',run:t=>commit(()=>{s.t=r3(s.t-t);const n={...s,id:uid('s'),t,locked:false};plan.stows.push(n);place(n,null);ui.sel=n.id},`Split ${fmt(t)} t off ${desc(s.parcel)} in H${s.hold} T${s.tier}`)});
-    if(act==='moveto'||act==='movepart'){const hold=+$('#mv-h').value,tier=+$('#mv-t').value;if(hold===s.hold&&tier===s.tier)return;
+    if(act==='split')qty({title:`Split ${s.parcel} block`,def:r3(s.t/2),max:r3(s.t-0.001),info:`Enter the tonnes for the new block. It appears beside the original in H${s.hold} T${s.tier}, ready to drag.`,ok:'Split',run:t=>commit(()=>{const f=t/s.t;s.t=r3(s.t-t);const n={...s,id:uid('s'),t,locked:false};if(s.shape){const B=bb(s.shape.pts);if(isRect(s.shape.pts)){const xm=r4(B.x1-B.w*f);s.shape={pts:rectPts(B.x0,B.y0,xm,B.y1)};n.shape={pts:rectPts(xm,B.y0,B.x1,B.y1)}}else n.shape={pts:translated(s.shape.pts.map(p=>[...p]),0.03,0.03)}}plan.stows.push(n);place(n,null);ui.sel=n.id},`Split ${fmt(t)} t off ${desc(s.parcel)} in H${s.hold} T${s.tier}`)});
+    if(act==='moveto'||act==='movepart'){const hold=+$('#mv-h').value,tier=isFree()?s.tier:+$('#mv-t').value;if(hold===s.hold&&tier===s.tier)return;
       if(act==='moveto')applyMove({kind:'stow',id:s.id,hold,tier,t:s.t});
       else qty({title:`Move part of ${s.parcel} to Hold ${hold}, Tier ${tier}`,def:r3(s.t/2),max:s.t,ok:'Move',run:q=>applyMove({kind:'stow',id:s.id,hold,tier,t:q})})}
   }
@@ -946,8 +1139,13 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('stow')){ui.sel=e.target.dataset.id;render();return}
   const s=ui.sel&&ST(ui.sel);
   if(e.key==='Escape'&&ui.pick){ui.pick=null;render();return}
+  if(e.key==='Escape'&&ui.draw){ui.draw=false;render();return}
+  if(e.key==='Escape'&&ui.pts){ui.pts=false;render();return}
   if(e.key==='Escape'){if(D){window.dispatchEvent(new Event('pointercancel'));return}ui.sel=null;ui.focus=null;render();return}
   if(!s)return;
+  if(isFree()&&s.shape&&e.key.startsWith('Arrow')&&!(e.key==='Delete')){if(s.locked){toast('This block is locked. Unlock it to move.','warn');return}
+    const st=e.shiftKey?0.05:0.01,dx=e.key==='ArrowLeft'?-st:e.key==='ArrowRight'?st:0,dy=e.key==='ArrowUp'?st:e.key==='ArrowDown'?-st:0;e.preventDefault();
+    commit(()=>{s.shape.pts=translated(s.shape.pts,dx,dy)},null);return}
   const mv={kind:'stow',id:s.id,hold:s.hold,tier:s.tier,t:s.t};
   if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();unstow(s.id);return}
   if(s.locked&&e.key.startsWith('Arrow')){toast('This block is locked. Unlock it to move.','warn');return}
