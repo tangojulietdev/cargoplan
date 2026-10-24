@@ -1,6 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hold Planner</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#0B3D5C">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
@@ -27,6 +34,11 @@
   --good:#4CC38A; --warn:#F2C14E; --crit:#FF7A72; --good-soft:#173429; --warn-soft:#3A2F14; --crit-soft:#3D1E1C;
   color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:light}
+body{margin:0}
+img{max-width:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html,body{background:var(--bg);color:var(--fg)}
 body{font-family:var(--font-ui);font-size:14px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 32px}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
@@ -56,7 +68,8 @@ button{cursor:pointer}
 .top .grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .save{font-size:12px;color:var(--muted)}
 
-main{max-width:1600px;margin:0 auto;display:grid;gap:16px;padding-top:16px}
+main{max-width:1600px;margin:0 auto;display:grid;gap:16px;padding-top:16px;min-width:0}
+main>*,#planview>*,.lower>*,.side>*{min-width:0}
 .banner{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border:1px dashed var(--line-2);border-radius:var(--r);background:var(--surface);font-size:13px}
 .banner b{font-weight:600}
 
@@ -106,7 +119,7 @@ main{max-width:1600px;margin:0 auto;display:grid;gap:16px;padding-top:16px}
 .hold-head .ico{width:14px;height:14px;color:var(--warn)}
 .hold-head .ico.crit{color:var(--crit)}
 .hold-body{display:flex;flex-direction:column-reverse;border:1.5px solid var(--hull);border-top-style:dashed;background:var(--hold-bg);overflow:hidden;margin-top:6px}
-.layer{position:relative;display:flex;min-height:26px;border-top:1px dashed var(--line-2);transition:background .12s,box-shadow .12s}
+.layer{position:relative;display:flex;min-height:30px;container-type:size;border-top:1px dashed var(--line-2);transition:background .12s,box-shadow .12s}
 .layer.free,.layer.fullstack{border-top:0!important}
 .layer.empty{flex:0 0 16px!important;min-height:16px;background:repeating-linear-gradient(135deg,transparent 0 5px,var(--surface-2) 5px 7px)}
 .layer.free{flex:1 1 auto!important;min-height:16px;align-items:flex-start;justify-content:center;border-top:1px dashed var(--line-2)}
@@ -119,6 +132,8 @@ body.dragging .layer.free span{opacity:1}
 .stow b{font-weight:600;white-space:nowrap}
 .stow span{font-family:var(--font-num);white-space:nowrap}
 .stow em{font-style:normal;opacity:.85;white-space:nowrap}
+@container (max-height:44px){.stow em{display:none}}
+@container (max-height:32px){.stow b{display:none}}
 .stow.sel{outline:2.5px solid var(--fg);outline-offset:-2.5px;z-index:2}
 .stow.locked{cursor:default}
 .stow.locked::after{content:"";position:absolute;right:3px;top:3px;width:9px;height:9px;border:2px solid currentColor;border-radius:2px}
@@ -231,14 +246,22 @@ tfoot td{font-weight:600;border-top:1px solid var(--line-2);border-bottom:0}
 .dlg .err{color:var(--crit);font-size:13px;min-height:1em;margin:8px 0 0}
 .dlg .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .dlg p{margin:0 0 8px}
-.toasts{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:300;display:grid;gap:8px;width:min(520px,calc(100% - 32px))}
+.pickbar{position:fixed;left:0;right:0;bottom:0;z-index:150;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:var(--primary);color:var(--primary-fg);font-size:14px}
+.pickbar b{font-weight:600}
+.pickbar .btn{background:var(--primary-fg);color:var(--primary);border-color:var(--primary-fg)}
+.chip.picked{outline:2.5px solid var(--primary);outline-offset:1px}
+body.picking .layer[data-tier]{cursor:copy}
+body.picking .layer.free span{opacity:1}
+body.picking .hold-body{box-shadow:0 0 0 2px var(--primary-soft)}
+.toasts{position:fixed;left:50%;bottom:calc(72px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:300;display:grid;gap:8px;width:min(520px,calc(100% - 32px))}
 .toast{padding:10px 14px;border-radius:var(--r);background:var(--fg);color:var(--bg);font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.2);display:flex;gap:8px;align-items:center}
 .toast.warn{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn)}
 .toast.crit{background:var(--crit-soft);color:var(--crit);border:1px solid var(--crit)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 @media (max-width:600px){.kpi .v{font-size:17px}.brand small{max-width:160px}}
 </style>
-
+</head>
+<body>
 <header class="top">
   <div class="brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="var(--primary)"/><path d="M5 17h22l-3 7H8z" fill="var(--primary-fg)"/><rect x="9" y="11" width="4" height="5" fill="var(--primary-fg)" opacity=".7"/><rect x="14" y="9" width="4" height="7" fill="var(--primary-fg)"/><rect x="19" y="12" width="4" height="4" fill="var(--primary-fg)" opacity=".7"/></svg>
@@ -299,6 +322,7 @@ tfoot td{font-weight:600;border-top:1px solid var(--line-2);border-bottom:0}
 </main>
 
 <div class="modal" id="modal" hidden><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="m-title"><h3 id="m-title"></h3><div id="m-body"></div><div class="foot" id="m-foot"></div></div></div>
+<div class="pickbar" id="pickbar" hidden><span id="picktext"></span><span style="flex:1"></span><button class="btn sm" id="b-pickcancel">Cancel</button></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script>
@@ -316,6 +340,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const uid=p=>p+Math.random().toString(36).slice(2,8);
 const sum=(a,f)=>a.reduce((x,y)=>x+f(y),0);
 const byOrder=(a,b)=>a.order-b.order;
+const ICONS={alert:'<path d="M12 3 2 20h20Z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',check:'<path d="m5 12 5 5L20 7"/>'};
+const ic=n=>`<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||''}</svg>`;
 
 /* ---------- sample voyage ---------- */
 function sample(){
@@ -347,7 +373,7 @@ function blank(base){return {schema:1,sample:false,ship:base.ship,voyage:{name:'
 function load(){try{const s=localStorage.getItem(LS);if(!s)return null;const p=JSON.parse(s);return p&&p.ship&&Array.isArray(p.stows)?p:null}catch(e){return null}}
 
 let plan=load()||sample();
-const ui={view:'plan',sel:null,focus:null,tab:'lp',scale:'vol',part:false,savedAt:null};
+const ui={view:'plan',pick:null,sel:null,focus:null,tab:'lp',scale:'vol',part:false,savedAt:null};
 let undoS=[],redoS=[];
 
 /* ---------- lookups ---------- */
@@ -475,6 +501,10 @@ function render(){
   $('#b-undo').disabled=!undoS.length;$('#b-redo').disabled=!redoS.length;
   $('#savestate').textContent=ui.savedAt?`Saved on this device ${ui.savedAt.toTimeString().slice(0,5)}`:'Not saved on this device';
   if(ui.focus&&!P(ui.focus))ui.focus=null;if(ui.sel&&!ST(ui.sel))ui.sel=null;
+  if(ui.pick&&!(ui.pick.kind==='parcel'?(PC(ui.pick.id)&&remOf(ui.pick.id)>0.001):ST(ui.pick.id)))ui.pick=null;
+  document.body.classList.toggle('picking',!!ui.pick);$('#pickbar').hidden=!ui.pick||ui.view!=='plan';
+  if(ui.pick){const k=ui.pick,pp=k.kind==='parcel'?PC(k.id):PC(ST(k.id).parcel),q=k.kind==='parcel'?remOf(k.id):ST(k.id).t;
+    $('#picktext').innerHTML=`<b>${k.kind==='parcel'?'Placing':'Moving'} ${esc(pp.id)} ${esc(pp.grade)} · ${fmt(q)} t</b> Tap a tier, or a hold number to place on top.`}
   if(ui.view==='plan'){renderSummary();renderRotation();renderShip();renderInspector();renderTray();renderTables()}
   else renderSetup();
 }
@@ -483,7 +513,7 @@ function renderSummary(){
   const booked=sum(plan.parcels,p=>p.bookedT),stowed=sum(plan.stows,s=>s.t),rem=r3(booked-stowed);
   const cap=sum(plan.ship.holds,h=>h.maxT),used=plan.ship.holds.filter(h=>hT(h.no)>0).length;
   const w=warnCount(validate());
-  const pill=w.crit?`<span class="pill crit">${ic('alert')}${w.crit} critical</span>`:w.warn?`<span class="pill warn">${ic('alert')}${w.warn} warnings</span>`:`<span class="pill good">${ic('check')}No conflicts</span>`;
+  const pill=w.crit?`<span class="pill crit">${ic('alert')}${w.crit} critical</span>`:w.warn?`<span class="pill warn">${ic('alert')}${w.warn} warning${w.warn>1?'s':''}</span>`:`<span class="pill good">${ic('check')}No conflicts</span>`;
   $('#summary').innerHTML=`
    <div class="kpi"><div class="l">Booked</div><div class="v">${fmt(booked)} <small>t</small></div></div>
    <div class="kpi"><div class="l">Stowed</div><div class="v">${fmt(stowed)} <small>t</small></div></div>
@@ -543,6 +573,7 @@ function renderInspector(){
    <dt>This block</dt><dd class="num">${fmt(s.t)} t · ${fmt(s.t*p.sf)} m³</dd>
    <dt>Parcel total</dt><dd class="num">${fmt(stowedOf(p.id))} of ${fmt(p.bookedT)} t stowed</dd></dl>
    <div class="acts">
+    <button class="btn sm" data-act="tapmove"${s.locked?' disabled':''}>Tap to move</button>
     <button class="btn sm" data-act="split">Split</button>
     <button class="btn sm" data-act="lock">${s.locked?'Unlock':'Lock'}</button>
     <button class="btn sm danger" data-act="unstow">Unstow</button>
@@ -556,11 +587,11 @@ function renderTray(){
   const grp=(title,color,list)=>{const items=list.filter(p=>remOf(p.id)>0.001);if(!items.length)return '';
     const rem=sum(items,p=>remOf(p.id));total+=rem;
     return `<div class="lpgrp"><header><i style="--c:${color}"></i>${esc(title)}<span class="num">${fmt(rem)} t</span></header>${items.map(p=>{
-      const r=remOf(p.id);return `<div class="chip${dimmed(p)?' dim':''}" data-drag="parcel" data-id="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(p.id)} ${esc(p.grade)}, ${fmt(r)} tonnes to ${esc(pname(p.dp))}. Drag onto a hold." style="--lp:${pcol(p.lp)};--dp:${pcol(p.dp)}"><span class="stripe"></span><span class="tx"><b>${esc(p.id)}</b> ${esc(p.grade)}<small>to ${esc(pname(p.dp))} · SF ${p.sf}</small></span><span class="t">${fmt(r)} t</span></div>`}).join('')}</div>`};
+      const r=remOf(p.id);return `<div class="chip${dimmed(p)?' dim':''}${ui.pick&&ui.pick.kind==='parcel'&&ui.pick.id===p.id?' picked':''}" data-drag="parcel" data-id="${esc(p.id)}" tabindex="0" role="button" aria-label="${esc(p.id)} ${esc(p.grade)}, ${fmt(r)} tonnes to ${esc(pname(p.dp))}. Drag onto a hold." style="--lp:${pcol(p.lp)};--dp:${pcol(p.dp)}"><span class="stripe"></span><span class="tx"><b>${esc(p.id)}</b> ${esc(p.grade)}<small>to ${esc(pname(p.dp))} · SF ${p.sf}</small></span><span class="t">${fmt(r)} t</span></div>`}).join('')}</div>`};
   lps.forEach(lp=>groups+=grp(lp.name,lp.color,plan.parcels.filter(p=>p.lp===lp.id)));
   if(orphan.length)groups+=grp('No load port set','#888888',orphan);
   el.innerHTML=`<h2>Cargo to stow <span class="n">${fmt(total)} t</span></h2>${groups||`<p class="empty-note">${plan.parcels.length?'All booked cargo is stowed. Drag a block here to unstow it.':'No cargo booked yet. Add ports and parcels in Setup.'}</p>`}
-   ${groups?'<p class="hint">Drag a parcel onto a tier. Drop a block here to unstow it.</p>':''}`;
+   ${groups?'<p class="hint">Drag a parcel onto a tier, or tap it and then tap a tier. Drop a block here to unstow it.</p>':''}`;
 }
 
 /* ---------- tables ---------- */
@@ -763,7 +794,10 @@ function moveDrag(e){
 }
 function endDrag(d,e){
   d.g&&d.g.remove();document.body.classList.remove('dragging');clearHi();d.el.classList.remove('src');
-  const tg=d.tg;if(!tg)return;
+  doDrop(d.kind,d.id,d.tg,e.shiftKey||e.altKey);
+}
+function doDrop(kind,id,tg,partKey){
+  const d={kind,id};if(!tg)return;
   if(tg.tray){if(d.kind==='stow')unstow(d.id);return}
   if(d.kind==='stow'&&tg.beforeId===d.id)return;
   const mv={kind:d.kind,id:d.id,hold:tg.hold,tier:tg.tier,beforeId:tg.beforeId};
@@ -774,7 +808,7 @@ function endDrag(d,e){
       quick:[{l:'All remaining',v:rem},...(room>0&&room<rem?[{l:'Fill hold',v:room}]:[]),{l:'Half',v:r3(rem/2)}],ok:'Stow',run:t=>applyMove({...mv,t})});
   }else{
     const s=ST(d.id);
-    if(ui.part||e.shiftKey||e.altKey){qty({title:`Move part of ${s.parcel} to Hold ${tg.hold}, Tier ${tg.tier}`,def:s.t,max:s.t,info:`Block holds ${fmt(s.t)} t. The rest stays in H${s.hold} T${s.tier}.`,quick:[{l:'Half',v:r3(s.t/2)},...(room>0&&room<s.t?[{l:'Fill hold',v:room}]:[])],ok:'Move',run:t=>applyMove({...mv,t})})}
+    if(ui.part||partKey){qty({title:`Move part of ${s.parcel} to Hold ${tg.hold}, Tier ${tg.tier}`,def:s.t,max:s.t,info:`Block holds ${fmt(s.t)} t. The rest stays in H${s.hold} T${s.tier}.`,quick:[{l:'Half',v:r3(s.t/2)},...(room>0&&room<s.t?[{l:'Fill hold',v:room}]:[])],ok:'Move',run:t=>applyMove({...mv,t})})}
     else applyMove({...mv,t:s.t});
   }
 }
@@ -783,9 +817,28 @@ document.addEventListener('pointerdown',e=>{
   D={kind:el.dataset.drag,id:el.dataset.id,x0:e.clientX,y0:e.clientY,on:false,el};
   if(e.pointerType!=='mouse')e.preventDefault();
 });
-window.addEventListener('pointermove',e=>{if(!D)return;if(!D.on){if(Math.hypot(e.clientX-D.x0,e.clientY-D.y0)<8)return;startDrag()}e.preventDefault();moveDrag(e)},{passive:false});
-window.addEventListener('pointerup',e=>{if(!D)return;const d=D;D=null;if(!d.on){if(d.kind==='stow'){ui.sel=d.id;render()}return}endDrag(d,e)});
-window.addEventListener('pointercancel',()=>{if(!D)return;D.g&&D.g.remove();D.el.classList.remove('src');document.body.classList.remove('dragging');clearHi();D=null});
+window.addEventListener('pointermove',e=>{if(!D)return;if(!D.on){if(Math.hypot(e.clientX-D.x0,e.clientY-D.y0)<8)return;startDrag()}e.preventDefault();lastPt={x:e.clientX,y:e.clientY};startScroll();moveDrag(e)},{passive:false});
+window.addEventListener('pointerup',e=>{if(!D)return;const d=D;D=null;stopScroll();
+  if(!d.on){
+    if(ui.pick&&d.kind==='stow'){const tg=resolveTarget(e.clientX,e.clientY);const k=ui.pick;if(!(k.kind==='stow'&&tg&&tg.beforeId===k.id)){ui.pick=null;doDrop(k.kind,k.id,tg,false);render();return}}
+    if(d.kind==='stow'){ui.sel=d.id;render()}
+    else if(d.kind==='parcel'){ui.pick=ui.pick&&ui.pick.id===d.id?null:{kind:'parcel',id:d.id};ui.sel=null;render()}
+    return}
+  endDrag(d,e)});
+document.addEventListener('click',e=>{
+  if(!ui.pick||e.target.closest('[data-drag],button,#pickbar'))return;
+  const hit=e.target.closest('.layer[data-tier],[data-hold-auto],#tray');if(!hit)return;
+  const tg=resolveTarget(e.clientX,e.clientY);const k=ui.pick;ui.pick=null;
+  if(tg&&tg.tray&&k.kind==='parcel'){render();return}
+  doDrop(k.kind,k.id,tg,false);render();
+});
+let scrollTimer=null,lastPt=null;
+function startScroll(){if(scrollTimer)return;scrollTimer=setInterval(()=>{if(!lastPt||!D||!D.on)return;const{x,y}=lastPt;
+  if(y<70)window.scrollBy(0,-14);else if(y>innerHeight-70)window.scrollBy(0,14);
+  const sc=$('#shipscroll'),r=sc.getBoundingClientRect();if(y>r.top&&y<r.bottom){if(x<r.left+48)sc.scrollLeft-=14;else if(x>r.right-48)sc.scrollLeft+=14}
+  moveDrag({clientX:x,clientY:y})},30)}
+function stopScroll(){clearInterval(scrollTimer);scrollTimer=null;lastPt=null}
+window.addEventListener('pointercancel',()=>{stopScroll();if(!D)return;D.g&&D.g.remove();D.el.classList.remove('src');document.body.classList.remove('dragging');clearHi();D=null});
 
 /* ---------- clicks ---------- */
 document.addEventListener('click',e=>{
@@ -803,6 +856,7 @@ document.addEventListener('click',e=>{
   if(act==='csv'){copyText(lastCSV,'Table copied as CSV. Paste into Excel.');return}
   if(s){
     if(act==='desel'){ui.sel=null;render()}
+    if(act==='tapmove'){ui.pick={kind:'stow',id:s.id};render()}
     if(act==='unstow')unstow(s.id);
     if(act==='lock')commit(()=>{s.locked=!s.locked},`${s.locked?'Unlocked':'Locked'} ${s.parcel} in H${s.hold} T${s.tier}`);
     if(act==='split')qty({title:`Split ${s.parcel} block`,def:r3(s.t/2),max:r3(s.t-0.001),info:`Enter the tonnes for the new block. It appears beside the original in H${s.hold} T${s.tier}, ready to drag.`,ok:'Split',run:t=>commit(()=>{s.t=r3(s.t-t);const n={...s,id:uid('s'),t,locked:false};plan.stows.push(n);place(n,null);ui.sel=n.id},`Split ${fmt(t)} t off ${desc(s.parcel)} in H${s.hold} T${s.tier}`)});
@@ -813,6 +867,7 @@ document.addEventListener('click',e=>{
 });
 $('#v-plan').onclick=()=>{ui.view='plan';render()};
 $('#v-setup').onclick=()=>{ui.view='setup';render()};
+$('#b-pickcancel').onclick=()=>{ui.pick=null;render()};
 $('#b-undo').onclick=undo;$('#b-redo').onclick=redo;$('#b-data').onclick=dataDialog;
 document.addEventListener('click',e=>{if(e.target.closest('#b-part')){ui.part=!ui.part;render();toast(ui.part?'Move part is on: each drop asks for tonnes':'Move part is off')}});
 const blankRun=()=>confirmBox('Start a blank voyage?','Ports, parcels and stowage are cleared. Hold figures and tiers stay. You can undo this.','Start blank',()=>commit(()=>{plan=blank(plan);ui.sel=null;ui.focus=null;ui.view='setup'},'Blank voyage started'));
@@ -835,6 +890,7 @@ document.addEventListener('keydown',e=>{
   if(mod&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}
   if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('stow')){ui.sel=e.target.dataset.id;render();return}
   const s=ui.sel&&ST(ui.sel);
+  if(e.key==='Escape'&&ui.pick){ui.pick=null;render();return}
   if(e.key==='Escape'){if(D){window.dispatchEvent(new Event('pointercancel'));return}ui.sel=null;ui.focus=null;render();return}
   if(!s)return;
   const mv={kind:'stow',id:s.id,hold:s.hold,tier:s.tier,t:s.t};
@@ -861,3 +917,6 @@ if(!IN_ARTIFACT){
 save();render();
 })();
 </script>
+
+</body>
+</html>
