@@ -1,5 +1,5 @@
 // Hold Planner service worker: network first, cache as offline fallback.
-const VERSION='1.3.0';
+const VERSION='1.4.1';
 const CACHE='hold-planner-'+VERSION;
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 

@@ -119,11 +119,11 @@ main>*,#planview>*,.lower>*,.side>*{min-width:0}
 .gantry{position:absolute;left:-3px;right:-3px;top:-80px;height:104px;width:calc(100% + 6px);pointer-events:none;z-index:3}
 .gantry-tag{position:absolute;top:-98px;left:0;width:calc(200% + 6px);white-space:nowrap;text-align:center;font-size:10px;letter-spacing:.08em;color:var(--muted);pointer-events:none}
 .holds{position:relative;display:flex;flex-direction:row-reverse;gap:6px}
-.hold{position:relative;flex:1 1 0;min-width:0;display:grid;grid-template-rows:26px 212px auto;border-radius:6px}
+.hold{position:relative;flex:1 1 0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:26px 212px auto;border-radius:6px}
 .hold-head{display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;font-size:13px;border-radius:6px 6px 0 0;color:var(--fg)}
 .hold-head .ico{width:14px;height:14px;color:var(--warn)}
 .hold-head .ico.crit{color:var(--crit)}
-.hold-body{display:flex;flex-direction:column-reverse;border:1.5px solid var(--hull);border-top-style:dashed;background:var(--hold-bg);overflow:hidden;margin-top:6px}
+.hold-body{align-self:start;height:calc(206px * var(--d,1));display:flex;flex-direction:column-reverse;border:1.5px solid var(--hull);border-top-style:dashed;background:var(--hold-bg);overflow:hidden;margin-top:6px}
 .layer{position:relative;display:flex;min-height:30px;container-type:size;border-top:1px dashed var(--line-2);transition:background .12s,box-shadow .12s}
 .layer.free,.layer.fullstack{border-top:0!important}
 .layer.empty{flex:0 0 16px!important;min-height:16px;background:repeating-linear-gradient(135deg,transparent 0 5px,var(--surface-2) 5px 7px)}
@@ -151,6 +151,9 @@ body.dragging .layer.free span{opacity:1}
 #tray.t-ok{box-shadow:inset 0 0 0 2px var(--primary)}
 .hold-foot{padding:8px 2px 2px;text-align:center;border-radius:0 0 6px 6px;margin-top:22px}
 .hold-foot .t{font-family:var(--font-num);font-weight:600;font-size:13px}
+.hold-foot .dim-l{font-family:var(--font-num);font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hold-foot .dim-l+.dim-l{margin-top:0}
+.hold-foot .dim-l.over{color:var(--crit);font-weight:600}
 .hold-foot .p{font-family:var(--font-num);font-size:10.5px;color:var(--muted)}
 .bar{height:5px;border-radius:3px;background:var(--surface-2);margin:4px 6px 0;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--good)}
@@ -353,7 +356,7 @@ body.picking .hold-body{box-shadow:0 0 0 2px var(--primary-soft)}
 <script>
 (function(){
 'use strict';
-const APP_VERSION='1.3.0';
+const APP_VERSION='1.4.1';
 const LS='holdplanner.plan.v1', LST='holdplanner.theme';
 const DP_PAL=['#2F6FD0','#D9731A','#0F9488','#C0367C','#7A8A1C','#7B4BC4','#B8860B','#2D8FD6'];
 const LP_PAL=['#5B6B7F','#B59A6A','#6F9A72','#A35C3C','#8A5A83','#4F7A96'];
@@ -369,10 +372,23 @@ const byOrder=(a,b)=>a.order-b.order;
 const ICONS={alert:'<path d="M12 3 2 20h20Z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',check:'<path d="m5 12 5 5L20 7"/>'};
 const ic=n=>`<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||''}</svg>`;
 
+/* ---------- ship profile: MV Kite Arrow (Toucan class), from G2 Ocean cargo plan ---------- */
+// [hold, length m, breadth m, height m, bale/grain m3, tank top t/m2]
+const KITE=[[1,13.2,18.0,18.38,4367,35],[2,13.2,23.0,18.88,5732,25],[3,13.2,27.4,18.88,6828.5,35],[4,13.2,27.4,18.88,6828.5,25],[5,13.2,27.4,18.88,6828.5,35],
+  [6,13.2,27.4,18.88,6828.5,25],[7,13.2,27.4,18.88,6828.5,35],[8,13.2,27.4,18.88,6828.5,25],[9,13.2,27.4,15.88,5743.5,35],[10,13.2,23.0,14.88,4517.5,25]];
+const kiteHolds=()=>KITE.map(([no,L,B,Hh,bale,tt])=>({no,L,B,H:Hh,baleM3:bale,ttT:tt,deckT:2.5}));
+const area=h=>(h.L&&h.B)?h.L*h.B:0;
+const hMax=h=>area(h)&&h.ttT?r3(area(h)*h.ttT):(h.maxT||0);
+const fmtB=v=>Number(v||0).toLocaleString('en-US',{maximumFractionDigits:1});
+const dimS=h=>h.L?`${h.L}×${h.B}×${h.H}`:'';
+const deckMax=h=>area(h)?Math.floor(area(h)*(h.deckT||2.5)):0;
+function migrate(p){
+  if(p&&p.ship&&p.ship.holds&&!p.ship.holds.every(h=>h.L)){p.ship.holds=kiteHolds();if(/sample|example/i.test(p.ship.name||''))p.ship.name='MV Kite Arrow';p.ship.cls='Toucan class';p.log=p.log||[];p.log.unshift({at:Date.now(),text:'Hold dimensions set to MV Kite Arrow capacity plan'})}
+  return p;
+}
 /* ---------- sample voyage ---------- */
 function sample(){
-  const caps=[[3800,6300],[5300,8800],[5500,8900],[5500,8900],[5600,9000],[5600,9000],[5500,8900],[5500,8900],[5300,8700],[4600,7600]];
-  const holds=caps.map((c,i)=>({no:i+1,maxT:c[0],baleM3:c[1]}));
+  const holds=kiteHolds();
   const ports=[
     {id:'vix',name:'Vitória',code:'BRVIX',role:'load',seq:1,color:LP_PAL[0]},
     {id:'ssz',name:'Santos',code:'BRSSZ',role:'load',seq:2,color:LP_PAL[1]},
@@ -381,24 +397,24 @@ function sample(){
     {id:'ham',name:'Hamburg',code:'DEHAM',role:'discharge',seq:2,color:DP_PAL[1]},
     {id:'gdy',name:'Gdynia',code:'PLGDY',role:'discharge',seq:3,color:DP_PAL[2]}];
   const parcels=[
-    {id:'P01',ref:'BKP-ANR-01',grade:'BKP',lp:'ssz',dp:'anr',bookedT:9000,sf:1.75},
-    {id:'P02',ref:'BKP-HAM-02',grade:'BKP',lp:'ssz',dp:'ham',bookedT:7500,sf:1.75},
-    {id:'P03',ref:'BKP-GDY-03',grade:'BKP',lp:'ssz',dp:'gdy',bookedT:4000,sf:1.75},
+    {id:'P01',ref:'BKP-ANR-01',grade:'BKP',lp:'ssz',dp:'anr',bookedT:9000,sf:1.35},
+    {id:'P02',ref:'BKP-HAM-02',grade:'BKP',lp:'ssz',dp:'ham',bookedT:7500,sf:1.35},
+    {id:'P03',ref:'BKP-GDY-03',grade:'BKP',lp:'ssz',dp:'gdy',bookedT:4000,sf:1.35},
     {id:'P04',ref:'COIL-ANR-04',grade:'Steel coils',lp:'vix',dp:'anr',bookedT:6000,sf:0.35},
     {id:'P05',ref:'PLT-HAM-05',grade:'Steel plates',lp:'vix',dp:'ham',bookedT:3500,sf:0.4},
-    {id:'P06',ref:'BEKP-HAM-06',grade:'BEKP',lp:'pcl',dp:'ham',bookedT:6500,sf:1.8},
-    {id:'P07',ref:'BEKP-GDY-07',grade:'BEKP',lp:'pcl',dp:'gdy',bookedT:5000,sf:1.8}];
+    {id:'P06',ref:'BEKP-HAM-06',grade:'BEKP',lp:'pcl',dp:'ham',bookedT:6500,sf:1.4},
+    {id:'P07',ref:'BEKP-GDY-07',grade:'BEKP',lp:'pcl',dp:'gdy',bookedT:5000,sf:1.4}];
   const S=(p,h,t,q)=>({id:uid('s'),parcel:p,hold:h,tier:t,order:0,t:q,locked:false});
-  const stows=[S('P04',1,1,1500),S('P07',2,1,2400),S('P06',2,2,2400),S('P03',3,1,2000),S('P02',3,2,2600),
+  const stows=[S('P04',1,1,1500),S('P07',2,1,2000),S('P06',2,2,2000),S('P03',3,1,2000),S('P02',3,2,2600),
     S('P05',4,1,1800),S('P01',4,2,2700),S('P04',5,1,2000),S('P01',5,2,2600),S('P02',6,1,2500),S('P01',6,2,2200),
     S('P01',7,1,1200),S('P06',7,2,1500),S('P05',8,1,1700),S('P06',8,2,2600),S('P03',9,1,2000),S('P07',9,2,1800)];
-  return {schema:1,sample:true,ship:{name:'MV Example (sample)',tiers:4,holds},voyage:{name:'Voyage 2611 · ECSA to Continent',tolPct:5},
+  return {schema:1,sample:true,ship:{name:'MV Kite Arrow',cls:'Toucan class',tiers:4,holds},voyage:{name:'Voyage 2611 · ECSA to Continent',tolPct:5},
     ports,parcels,stows,log:[{at:Date.now(),text:'Sample voyage created'}]};
 }
 function blank(base){return {schema:1,sample:false,ship:base.ship,voyage:{name:'New voyage',tolPct:base.voyage.tolPct||5},ports:[],parcels:[],stows:[],log:[{at:Date.now(),text:'Blank voyage started'}]}}
 function load(){try{const s=localStorage.getItem(LS);if(!s)return null;const p=JSON.parse(s);return p&&p.ship&&Array.isArray(p.stows)?p:null}catch(e){return null}}
 
-let plan=load()||sample();
+let plan=migrate(load())||sample();
 const ui={view:'plan',pick:null,sel:null,focus:null,tab:'lp',scale:'vol',part:false,savedAt:null};
 let undoS=[],redoS=[];
 
@@ -428,7 +444,7 @@ function ink(hex){if(!/^#[0-9a-f]{6}$/i.test(hex||''))return '#111A22';const L=l
 function holdIssues(n,st=plan.stows){
   const h=H(n),list=hStows(n,st),out=[];if(!h)return out;
   const t=sum(list,s=>s.t),v=sum(list,s=>s.t*(PC(s.parcel)?.sf||0));
-  if(t>h.maxT+0.001)out.push({sev:'crit',hold:n,msg:`Hold ${n}: ${fmt(t)} t exceeds hold max ${fmt(h.maxT)} t`});
+  if(t>hMax(h)+0.001)out.push({sev:'crit',hold:n,msg:area(h)?`Hold ${n}: ${(t/area(h)).toFixed(1)} t/m² on tank top exceeds ${h.ttT} t/m² (max ${fmt(hMax(h))} t)`:`Hold ${n}: ${fmt(t)} t exceeds hold max ${fmt(hMax(h))} t`});
   if(v>h.baleM3+0.5)out.push({sev:'warn',hold:n,msg:`Hold ${n}: ${fmt(v)} m³ exceeds bale capacity ${fmt(h.baleM3)} m³`});
   for(const lo of list)for(const hi of list){
     if(hi.tier<=lo.tier)continue;const a=PC(lo.parcel),b=PC(hi.parcel);if(!a||!b)continue;
@@ -520,7 +536,7 @@ function qty(opts){
 
 /* ---------- render: top ---------- */
 function render(){
-  $('#shipline').textContent=`${plan.ship.name} · ${plan.voyage.name}`;
+  $('#shipline').textContent=`${plan.ship.name}${plan.ship.cls?' ('+plan.ship.cls+')':''} · ${plan.voyage.name}`;
   $('#banner').hidden=!plan.sample;
   $('#v-plan').setAttribute('aria-pressed',ui.view==='plan');$('#v-setup').setAttribute('aria-pressed',ui.view==='setup');
   $('#planview').hidden=ui.view!=='plan';$('#setupview').hidden=ui.view!=='setup';
@@ -537,7 +553,7 @@ function render(){
 function warnCount(w){return {crit:w.filter(x=>x.sev==='crit').length,warn:w.filter(x=>x.sev==='warn').length}}
 function renderSummary(){
   const booked=sum(plan.parcels,p=>p.bookedT),stowed=sum(plan.stows,s=>s.t),rem=r3(booked-stowed);
-  const cap=sum(plan.ship.holds,h=>h.maxT),used=plan.ship.holds.filter(h=>hT(h.no)>0).length;
+  const cap=sum(plan.ship.holds,h=>h.baleM3),stowV=sum(plan.stows,s=>s.t*(PC(s.parcel)?.sf||0)),used=plan.ship.holds.filter(h=>hT(h.no)>0).length;
   const w=warnCount(validate());
   const pill=w.crit?`<span class="pill crit">${ic('alert')}${w.crit} critical</span>`:w.warn?`<span class="pill warn">${ic('alert')}${w.warn} warning${w.warn>1?'s':''}</span>`:`<span class="pill good">${ic('check')}No conflicts</span>`;
   $('#summary').innerHTML=`
@@ -545,7 +561,7 @@ function renderSummary(){
    <div class="kpi"><div class="l">Stowed</div><div class="v">${fmt(stowed)} <small>t</small></div></div>
    <div class="kpi ${rem>0.001?'rem':'ok'}"><div class="l">Remaining</div><div class="v">${fmt(rem)} <small>t</small></div></div>
    <div class="kpi"><div class="l">Holds used</div><div class="v">${used}<small> / ${plan.ship.holds.length}</small></div></div>
-   <div class="kpi"><div class="l">Hold capacity used</div><div class="v">${pct(stowed,cap).toFixed(0)}<small> %</small></div></div>
+   <div class="kpi"><div class="l">Bale capacity used</div><div class="v">${pct(stowV,cap).toFixed(0)}<small> %</small></div></div>
    <div class="kpi"><div class="l">Plan check</div><div class="v" style="font-size:14px;padding-top:4px">${pill}</div></div>`;
 }
 function renderRotation(){
@@ -572,12 +588,12 @@ function renderShip(){
   const tiers=plan.ship.tiers;let html='';
   for(const h of plan.ship.holds){
     const list=hStows(h.no),t=sum(list,s=>s.t),v=sum(list,s=>s.t*(PC(s.parcel)?.sf||0));
-    const wt=pct(t,h.maxT),vol=pct(v,h.baleM3),top=maxTier(h.no),iss=holdIssues(h.no);
+    const wt=pct(t,hMax(h)),vol=pct(v,h.baleM3),top=maxTier(h.no),iss=holdIssues(h.no);
     let body='';
     for(let k=1;k<=top;k++){
       const ts=list.filter(s=>s.tier===k).sort(byOrder);
       if(!ts.length){body+=`<div class="layer empty" data-hold="${h.no}" data-tier="${k}" aria-label="Hold ${h.no} tier ${k} empty"></div>`;continue}
-      const frac=ui.scale==='vol'?pct(sum(ts,s=>s.t*(PC(s.parcel)?.sf||0)),h.baleM3):pct(sum(ts,s=>s.t),h.maxT);
+      const frac=ui.scale==='vol'?pct(sum(ts,s=>s.t*(PC(s.parcel)?.sf||0)),h.baleM3):pct(sum(ts,s=>s.t),hMax(h));
       body+=`<div class="layer" data-hold="${h.no}" data-tier="${k}" style="flex:0 1 ${Math.max(frac,0.1).toFixed(2)}%"><span class="tier-tag">T${k}</span>${ts.map(stowHtml).join('')}</div>`;
     }
     if(top<tiers)body+=`<div class="layer free" data-hold="${h.no}" data-tier="${top+1}"><span>T${top+1}</span></div>`;
@@ -587,8 +603,8 @@ function renderShip(){
     const n=plan.ship.holds.length,crane=h.no===n||h.no===n-1;
     html+=`<div class="hold" id="hold-${h.no}" data-holdcol="${h.no}">${crane?GANTRY+(h.no===n?'<span class="gantry-tag">2 × GANTRY CRANE, PARKED AFT</span>':''):''}
       <div class="hold-head" data-hold-auto="${h.no}" title="Hold ${h.no}${iss.length?': '+esc(iss.map(i=>i.msg).join('; ')):''}">${h.no}${sev?`<svg class="ico ${sev}" viewBox="0 0 24 24" role="img" aria-label="${iss.length} issues"><path d="M12 3 2 20h20Z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>`:''}</div>
-      <div class="hold-body">${body}</div>
-      <div class="hold-foot" data-hold-auto="${h.no}"><div class="t">${fmt(t)} t</div><div class="p">${wt.toFixed(0)}% wt · ${vol.toFixed(0)}% vol</div><div class="bar"><i class="${bs}" style="width:${Math.min(100,Math.max(wt,vol)).toFixed(1)}%"></i></div></div></div>`;
+      <div class="hold-body" style="--d:${h.H?(h.H/Math.max(...plan.ship.holds.map(x=>x.H||0))).toFixed(3):1}">${body}</div>
+      <div class="hold-foot" data-hold-auto="${h.no}"><div class="t">${fmt(t)} t</div><div class="p">${vol.toFixed(0)}% vol${area(h)?'':' · '+wt.toFixed(0)+'% wt'}</div><div class="bar"><i class="${bs}" style="width:${Math.min(100,Math.max(wt,vol)).toFixed(1)}%"></i></div>${h.L?`<div class="dim-l" title="L × B × H metres">${dimS(h)}</div><div class="dim-l">${fmtB(h.baleM3)} m³</div><div class="dim-l${t/area(h)>h.ttT?' over':''}" title="Tank top load / limit">TT ${(t/area(h)).toFixed(1)}/${h.ttT} t/m²</div>`:''}</div></div>`;
   }
   $('#holds').innerHTML=html;
 }
@@ -681,11 +697,11 @@ function tHolds(){
   const rows=plan.ship.holds.map(h=>{const list=hStows(h.no);const t=sum(list,s=>s.t),v=sum(list,s=>s.t*(PC(s.parcel)?.sf||0));
     return {h,t,v,lps:[...new Set(list.map(s=>PC(s.parcel)?.lp))],dps:[...new Set(list.map(s=>PC(s.parcel)?.dp))],iss:holdIssues(h.no)}});
   const dots=(ids,sq)=>ids.map(id=>`<span class="dot${sq?' sq':''}" style="--c:${pcol(id)}" title="${esc(pname(id))}"></span>`).join('');
-  const body=rows.map(r=>`<tr><td class="num"><b>${r.h.no}</b></td><td class="n">${fmt(r.h.maxT)}</td><td class="n">${fmt(r.t)}</td><td class="n">${fmt(r.h.maxT-r.t)}</td><td class="n">${pct(r.t,r.h.maxT).toFixed(0)}%</td><td class="n">${fmt(r.v)}</td><td class="n">${pct(r.v,r.h.baleM3).toFixed(0)}%</td><td>${dots(r.lps,true)}</td><td>${dots(r.dps)}</td><td>${r.iss.length?`<span class="pill ${r.iss.some(i=>i.sev==='crit')?'crit':'warn'}" title="${esc(r.iss.map(i=>i.msg).join('\n'))}">${r.iss.length} issue${r.iss.length>1?'s':''}</span>`:r.t?'<span class="pill good">OK</span>':'<span class="pill info">Empty</span>'}</td><td>${r.t?`<button class="btn sm" data-clear="${r.h.no}">Clear</button>`:''}</td></tr>`).join('');
-  const T=sum(rows,r=>r.t),C=sum(rows,r=>r.h.maxT),V=sum(rows,r=>r.v),B=sum(rows,r=>r.h.baleM3);
-  return {note:'Weight and volume per hold against its limits. Volume uses each parcel stowage factor (m³/t).',
-   html:`<table><thead><tr><th>Hold</th><th class="n">Max t</th><th class="n">Stowed t</th><th class="n">Room t</th><th class="n">% wt</th><th class="n">Volume m³</th><th class="n">% vol</th><th>LPs</th><th>DPs</th><th>Status</th><th></th></tr></thead><tbody>${body}</tbody><tfoot><tr><td>Total</td><td class="n">${fmt(C)}</td><td class="n">${fmt(T)}</td><td class="n">${fmt(C-T)}</td><td class="n">${pct(T,C).toFixed(0)}%</td><td class="n">${fmt(V)}</td><td class="n">${pct(V,B).toFixed(0)}%</td><td colspan="4"></td></tr></tfoot></table>`,
-   csv:csvOf([['Hold','Max t','Stowed t','Room t','% wt','Volume m3','Bale m3','% vol','LPs','DPs'],...rows.map(r=>[r.h.no,r.h.maxT,r3(r.t),r3(r.h.maxT-r.t),pct(r.t,r.h.maxT).toFixed(1),Math.round(r.v),r.h.baleM3,pct(r.v,r.h.baleM3).toFixed(1),r.lps.map(pname).join('; '),r.dps.map(pname).join('; ')])])};
+  const body=rows.map(r=>{const A=area(r.h),ttL=A?r.t/A:0;return `<tr><td class="num"><b>${r.h.no}</b></td><td class="num" style="white-space:nowrap">${dimS(r.h)}</td><td class="n">${A?fmtB(A):''}</td><td class="n">${fmtB(r.h.baleM3)}</td><td class="n">${fmt(r.v)}</td><td class="n">${pct(r.v,r.h.baleM3).toFixed(0)}%</td><td class="n">${fmt(r.t)}</td><td class="n" style="${ttL>r.h.ttT?'color:var(--crit);font-weight:600':''}">${A?ttL.toFixed(1)+' / '+r.h.ttT:''}</td><td class="n">${fmt(hMax(r.h))}</td><td class="n">${deckMax(r.h)?fmt(deckMax(r.h)):''}</td><td>${dots(r.lps,true)}</td><td>${dots(r.dps)}</td><td>${r.iss.length?`<span class="pill ${r.iss.some(i=>i.sev==='crit')?'crit':'warn'}" title="${esc(r.iss.map(i=>i.msg).join('\n'))}">${r.iss.length} issue${r.iss.length>1?'s':''}</span>`:r.t?'<span class="pill good">OK</span>':'<span class="pill info">Empty</span>'}</td><td>${r.t?`<button class="btn sm" data-clear="${r.h.no}">Clear</button>`:''}</td></tr>`}).join('');
+  const T=sum(rows,r=>r.t),V=sum(rows,r=>r.v),B=sum(rows,r=>r.h.baleM3);
+  return {note:'Dimensions L × B × H, tank top area and limits from the MV Kite Arrow capacity plan. Tank top load = hold tonnes ÷ L × B. Hatch cover max at 2.5 t/m².',
+   html:`<table><thead><tr><th>Hold</th><th>L × B × H m</th><th class="n">Area m²</th><th class="n">Bale m³</th><th class="n">Used m³</th><th class="n">% vol</th><th class="n">Stowed t</th><th class="n">TT t/m² used / max</th><th class="n">TT max t</th><th class="n">Hatch max t</th><th>LPs</th><th>DPs</th><th>Status</th><th></th></tr></thead><tbody>${body}</tbody><tfoot><tr><td>Total</td><td></td><td></td><td class="n">${fmtB(B)}</td><td class="n">${fmt(V)}</td><td class="n">${pct(V,B).toFixed(0)}%</td><td class="n">${fmt(T)}</td><td colspan="7"></td></tr></tfoot></table>`,
+   csv:csvOf([['Hold','L m','B m','H m','Area m2','Bale m3','Used m3','% vol','Stowed t','TT used t/m2','TT max t/m2','TT max t','Hatch max t','LPs','DPs'],...rows.map(r=>{const A=area(r.h);return [r.h.no,r.h.L,r.h.B,r.h.H,A?r3(A):'',r.h.baleM3,Math.round(r.v),pct(r.v,r.h.baleM3).toFixed(1),r3(r.t),A?(r.t/A).toFixed(2):'',r.h.ttT,hMax(r.h),deckMax(r.h),r.lps.map(pname).join('; '),r.dps.map(pname).join('; ')]})])};
 }
 function tParcels(){
   const rows=plan.parcels.map(p=>({p,s:stowedOf(p.id),r:remOf(p.id),loc:plan.stows.filter(s=>s.parcel===p.id).sort((a,b)=>a.hold-b.hold||a.tier-b.tier)}));
@@ -720,7 +736,8 @@ function renderSetup(){
     <td><select data-e="parcel" data-id="${esc(p.id)}" data-f="lp" aria-label="Load port">${opt(LPs(),p.lp)}</select></td><td><select data-e="parcel" data-id="${esc(p.id)}" data-f="dp" aria-label="Discharge port">${opt(DPs(),p.dp)}</select></td>
     <td><input class="n" type="number" min="0" step="any" data-e="parcel" data-id="${esc(p.id)}" data-f="bookedT" value="${p.bookedT}" aria-label="Booked tonnes"></td><td><input class="n" type="number" min="0" step="any" data-e="parcel" data-id="${esc(p.id)}" data-f="sf" value="${p.sf}" aria-label="Stowage factor"></td>
     <td class="n">${fmt(stowedOf(p.id))}</td><td><button class="icon-btn" data-del-parcel="${esc(p.id)}" aria-label="Delete ${esc(p.id)}"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button></td></tr>`;
-  const hRow=h=>`<tr><td class="num"><b>${h.no}</b></td><td><input class="n" type="number" min="0" step="any" data-e="hold" data-id="${h.no}" data-f="maxT" value="${h.maxT}" aria-label="Hold ${h.no} max tonnes"></td><td><input class="n" type="number" min="0" step="any" data-e="hold" data-id="${h.no}" data-f="baleM3" value="${h.baleM3}" aria-label="Hold ${h.no} bale capacity"></td><td class="n">${fmt(hT(h.no))}</td></tr>`;
+  const hin=(h,f,lab,w)=>`<input class="n" type="number" min="0" step="any" data-e="hold" data-id="${h.no}" data-f="${f}" value="${h[f]??''}" aria-label="Hold ${h.no} ${lab}" style="min-width:${w||70}px">`;
+  const hRow=h=>`<tr><td class="num"><b>${h.no}</b></td><td>${hin(h,'L','length m')}</td><td>${hin(h,'B','breadth m')}</td><td>${hin(h,'H','height m')}</td><td class="n">${area(h)?fmt(area(h)):''}</td><td>${hin(h,'baleM3','bale m³',90)}</td><td class="n" style="color:var(--muted)">${h.L&&h.B&&h.H?fmt(h.L*h.B*h.H):''}</td><td>${hin(h,'ttT','tank top t/m²',60)}</td><td class="n">${fmt(hMax(h))}</td><td>${hin(h,'deckT','hatch cover t/m²',60)}</td><td class="n">${deckMax(h)?fmt(deckMax(h)):''}</td><td class="n">${fmt(hT(h.no))}</td></tr>`;
   $('#setupview').innerHTML=`
    <div class="card panel"><h2>Voyage</h2>
     <div class="formrow">
@@ -738,12 +755,12 @@ function renderSetup(){
     <div class="tscroll"><table><thead><tr><th>ID</th><th>Booking ref</th><th>Grade</th><th>Load port</th><th>Discharge port</th><th class="n">Booked t</th><th class="n">SF m³/t</th><th class="n">Stowed t</th><th></th></tr></thead><tbody>${plan.parcels.map(pRow).join('')||'<tr><td colspan="9" class="empty-note">No parcels yet.</td></tr>'}</tbody></table></div>
     <div class="formrow" style="margin:8px 0 0"><button class="btn primary" id="b-addparcel">Add parcel</button><button class="btn" id="b-paste">Paste from Excel</button></div></div>
    <div class="card panel"><h2>Holds</h2>
-    <p class="hint" style="margin:0 0 10px">Enter figures from the ship capacity plan. Volume checks use bale capacity.</p>
-    <div class="tscroll"><table style="max-width:560px"><thead><tr><th>Hold</th><th class="n">Max cargo t</th><th class="n">Bale m³</th><th class="n">Stowed t</th></tr></thead><tbody>${plan.ship.holds.map(hRow).join('')}</tbody></table></div></div>`;
+    <p class="hint" style="margin:0 0 10px">MV Kite Arrow figures from the G2 Ocean cargo plan. L × B gives the tank top area; tank top limit × area gives the hold weight limit. Volume checks use bale/grain capacity.</p><div class="formrow" style="margin:0 0 10px"><button class="btn" id="b-kite">Reset to Kite Arrow figures</button></div>
+    <div class="tscroll"><table><thead><tr><th>Hold</th><th class="n">L m</th><th class="n">B m</th><th class="n">H m</th><th class="n">Area m²</th><th class="n">Bale m³</th><th class="n">L×B×H m³</th><th class="n">TT t/m²</th><th class="n">TT max t</th><th class="n">Hatch t/m²</th><th class="n">Hatch max t</th><th class="n">Stowed t</th></tr></thead><tbody>${plan.ship.holds.map(hRow).join('')}</tbody></table></div></div>`;
 }
 function editField(el){
   const e=el.dataset.e,f=el.dataset.f,id=el.dataset.id;let v=el.value;
-  const numF=['seq','bookedT','sf','maxT','baleM3','tolPct','tiers'];
+  const numF=['seq','bookedT','sf','maxT','baleM3','tolPct','tiers','L','B','H','ttT','deckT'];
   if(numF.includes(f)){v=parseFloat(v);if(!isFinite(v)||v<0){toast('Enter a number zero or above.','crit');render();return}}
   if(e==='port'){const p=P(id);if(f==='seq')v=Math.max(1,Math.round(v));
     if(f==='role'&&plan.parcels.some(x=>x.lp===id||x.dp===id)){toast(`${p.name} is used by parcels. Change those parcels first.`,'crit');render();return}
@@ -752,7 +769,7 @@ function editField(el){
     if(f==='id'){v=v.trim();if(!v){render();return}if(v!==id&&PC(v)){toast(`Parcel ID ${v} already exists.`,'crit');render();return}
       commit(()=>{p.id=v;plan.stows.forEach(s=>{if(s.parcel===id)s.parcel=v})},`Parcel ${id} renamed ${v}`);return}
     commit(()=>{p[f]=v},`Parcel ${p.id}: ${f} set to ${v}`)}
-  else if(e==='hold'){const h=H(+id);commit(()=>{h[f]=v},`Hold ${h.no}: ${f==='maxT'?'max t':'bale m³'} set to ${fmt(v)}`)}
+  else if(e==='hold'){const h=H(+id),lab={L:'length m',B:'breadth m',H:'height m',baleM3:'bale m³',ttT:'tank top t/m²',deckT:'hatch cover t/m²'}[f]||f;commit(()=>{h[f]=v},`Hold ${h.no}: ${lab} set to ${v}`)}
   else if(e==='ship'){if(f==='tiers'){v=Math.min(8,Math.max(1,Math.round(v)));commit(()=>{plan.ship.tiers=v;plan.stows.forEach(s=>{if(s.tier>v)s.tier=v})},`Tiers per hold set to ${v}`)}else commit(()=>{plan.ship[f]=v},`Ship ${f} set`)}
   else if(e==='voyage')commit(()=>{plan.voyage[f]=v},`Voyage ${f} set`);
 }
@@ -827,7 +844,7 @@ function moveDrag(e){
   if(tg.auto)tg.el.classList.add('t-auto');
   const lay=tg.auto?$(`.layer[data-hold="${tg.hold}"][data-tier="${tg.tier}"]`):tg.el;lay&&lay.classList.add('t-'+r.level);
   const h=H(tg.hold);g3.className='g3 '+r.level;
-  g3.innerHTML=`H${tg.hold} T${tg.tier} · <span class="num">${fmt(r.before)} → ${fmt(r.after)} t (${pct(r.after,h.maxT).toFixed(0)}%)</span><br>${esc(r.level==='ok'?'No conflicts':r.msg)}`;
+  g3.innerHTML=`H${tg.hold} T${tg.tier} · <span class="num">${fmt(r.before)} → ${fmt(r.after)} t (${pct(r.after,hMax(h)).toFixed(0)}% of TT limit)</span><br>${esc(r.level==='ok'?'No conflicts':r.msg)}`;
 }
 function endDrag(d,e){
   d.g&&d.g.remove();document.body.classList.remove('dragging');clearHi();d.el.classList.remove('src');
@@ -838,7 +855,7 @@ function doDrop(kind,id,tg,partKey){
   if(tg.tray){if(d.kind==='stow')unstow(d.id);return}
   if(d.kind==='stow'&&tg.beforeId===d.id)return;
   const mv={kind:d.kind,id:d.id,hold:tg.hold,tier:tg.tier,beforeId:tg.beforeId};
-  const h=H(tg.hold),room=r3(h.maxT-hT(tg.hold)+(d.kind==='stow'&&ST(d.id).hold===tg.hold?ST(d.id).t:0));
+  const h=H(tg.hold),room=r3(hMax(h)-hT(tg.hold)+(d.kind==='stow'&&ST(d.id).hold===tg.hold?ST(d.id).t:0));
   if(d.kind==='parcel'){
     const rem=remOf(d.id),def=room>0?Math.min(rem,room):rem;
     qty({title:`Stow ${d.id} in Hold ${tg.hold}, Tier ${tg.tier}`,def,max:rem,info:`${fmt(rem)} t remaining for this parcel. Hold ${tg.hold} has ${fmt(Math.max(0,room))} t of room.`,
@@ -911,6 +928,7 @@ const blankRun=()=>confirmBox('Start a blank voyage?','Ports, parcels and stowag
 $('#b-blank').onclick=blankRun;
 document.addEventListener('click',e=>{
   if(e.target.closest('#b-blank2'))blankRun();
+  if(e.target.closest('#b-kite'))confirmBox('Reset hold figures?','All 10 holds go back to the MV Kite Arrow capacity plan figures. Cargo stays where it is. You can undo this.','Reset holds',()=>commit(()=>{plan.ship.holds=kiteHolds()},'Hold figures reset to MV Kite Arrow'));
   if(e.target.closest('#b-sample'))confirmBox('Load the sample voyage?','This replaces the current plan with example data. You can undo this.','Load sample',()=>commit(()=>{plan=sample();ui.sel=null;ui.focus=null},'Sample voyage loaded'));
   if(e.target.closest('#b-clearall'))confirmBox('Unstow all cargo?','Every unlocked block goes back to the cargo tray. You can undo this.','Unstow all',()=>commit(()=>{plan.stows=plan.stows.filter(s=>s.locked)},'Unstowed all cargo'));
   if(e.target.closest('#b-addparcel')){const lp=LPs()[0],dp=DPs()[0];commit(()=>{plan.parcels.push({id:nextPid(),ref:'',grade:'Cargo',lp:lp?lp.id:'',dp:dp?dp.id:'',bookedT:1000,sf:1})},'Added parcel')}
